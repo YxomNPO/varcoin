@@ -1,0 +1,11 @@
+
+
+Release notes 0.1.3
+
+- Multi-signatures
+- Updated block reward scheme
+- Further optimization in daemon RAM consumption
+- Faster wallet refresh
+- Transactions are returned from tx pools after 24 hours
+- Dynamic maximum block size limit
+- Various network health updates
