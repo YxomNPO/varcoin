@@ -1,70 +1,111 @@
-// Copyright (c) 2017-2018 YxomTech
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
+//
+// This file is part of Varcoin.
+//
+// Varcoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Varcoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
 #include <memory>
+#include <future>
 
 #include <boost/program_options/variables_map.hpp>
 
-#include "VarNote_core/account.h"
-#include "VarNote_core/VarNote_basic_impl.h"
-#include "wallet/wallet2.h"
-#include "console_handler.h"
-#include "password_container.h"
+#include "IWalletLegacy.h"
+#include "PasswordContainer.h"
 
+#include "Common/ConsoleHandler.h"
+#include "VarNoteCore/VarNoteBasicImpl.h"
+#include "VarNoteCore/Currency.h"
+#include "NodeRpcProxy/NodeRpcProxy.h"
+#include "WalletLegacy/WalletHelper.h"
+
+#include <Logging/LoggerRef.h>
+#include <Logging/LoggerManager.h>
+
+#include <System/Dispatcher.h>
+#include <System/Ipv4Address.h>
 
 namespace VarNote
 {
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
-  class simple_wallet : public tools::i_wallet2_callback
-  {
+  class simple_wallet : public VarNote::INodeObserver, public VarNote::IWalletLegacyObserver, public VarNote::INodeRpcProxyObserver {
   public:
-    typedef std::vector<std::string> command_type;
+    simple_wallet(System::Dispatcher& dispatcher, const VarNote::Currency& currency, Logging::LoggerManager& log);
 
-    simple_wallet();
     bool init(const boost::program_options::variables_map& vm);
     bool deinit();
     bool run();
     void stop();
 
-    //wallet *create_wallet();
     bool process_command(const std::vector<std::string> &args);
     std::string get_commands_str();
+
+    const VarNote::Currency& currency() const { return m_currency; }
+
   private:
+
+    Logging::LoggerMessage success_msg_writer(bool color = false) {
+      return logger(Logging::INFO, color ? Logging::GREEN : Logging::DEFAULT);
+    }
+
+    Logging::LoggerMessage fail_msg_writer() const {
+      auto msg = logger(Logging::ERROR, Logging::BRIGHT_RED);
+      msg << "Error: ";
+      return msg;
+    }
+
     void handle_command_line(const boost::program_options::variables_map& vm);
 
     bool run_console_handler();
 
-    bool new_wallet(const std::string &wallet_file, const std::string& password, bool testnet);
-    bool open_wallet(const std::string &wallet_file, const std::string& password, bool testnet);
+    bool new_wallet(const std::string &wallet_file, const std::string& password);
+    bool open_wallet(const std::string &wallet_file, const std::string& password);
     bool close_wallet();
 
     bool help(const std::vector<std::string> &args = std::vector<std::string>());
+    bool exit(const std::vector<std::string> &args);
     bool start_mining(const std::vector<std::string> &args);
     bool stop_mining(const std::vector<std::string> &args);
-    bool refresh(const std::vector<std::string> &args);
     bool show_balance(const std::vector<std::string> &args = std::vector<std::string>());
     bool show_incoming_transfers(const std::vector<std::string> &args);
     bool show_payments(const std::vector<std::string> &args);
     bool show_blockchain_height(const std::vector<std::string> &args);
+    bool listTransfers(const std::vector<std::string> &args);
     bool transfer(const std::vector<std::string> &args);
     bool print_address(const std::vector<std::string> &args = std::vector<std::string>());
     bool save(const std::vector<std::string> &args);
+    bool reset(const std::vector<std::string> &args);
     bool set_log(const std::vector<std::string> &args);
 
-    uint64_t get_daemon_blockchain_height(std::string& err);
-    bool try_connect_to_daemon();
     bool ask_wallet_create_if_needed();
 
-    //----------------- i_wallet2_callback ---------------------
-    virtual void on_new_block(uint64_t height, const VarNote::block& block);
-    virtual void on_money_received(uint64_t height, const VarNote::transaction& tx, size_t out_index);
-    virtual void on_money_spent(uint64_t height, const VarNote::transaction& in_tx, size_t out_index, const VarNote::transaction& spend_tx);
-    virtual void on_skip_transaction(uint64_t height, const VarNote::transaction& tx);
+    void printConnectionError() const;
+
+    //---------------- IWalletObserver -------------------------
+    virtual void initCompleted(std::error_code result) override;
+    virtual void externalTransactionCreated(VarNote::TransactionId transactionId) override;
+    //----------------------------------------------------------
+
+    //----------------- INodeObserver --------------------------
+    virtual void localBlockchainUpdated(uint32_t height) override;
+    //----------------------------------------------------------
+
+    //----------------- INodeRpcProxyObserver --------------------------
+    virtual void connectionStatusUpdated(bool connected) override;
     //----------------------------------------------------------
 
     friend class refresh_progress_reporter_t;
@@ -83,8 +124,8 @@ namespace VarNote
       void update(uint64_t height, bool force = false)
       {
         auto current_time = std::chrono::system_clock::now();
-        if (std::chrono::seconds(DIFFICULTY_TARGET / 2) < current_time - m_blockchain_height_update_time || m_blockchain_height <= height)
-        {
+        if (std::chrono::seconds(m_simple_wallet.currency().difficultyTarget() / 2) < current_time - m_blockchain_height_update_time ||
+            m_blockchain_height <= height) {
           update_blockchain_height();
           m_blockchain_height = (std::max)(m_blockchain_height, height);
         }
@@ -100,7 +141,7 @@ namespace VarNote
       void update_blockchain_height()
       {
         std::string err;
-        uint64_t blockchain_height = m_simple_wallet.get_daemon_blockchain_height(err);
+        uint64_t blockchain_height = m_simple_wallet.m_node->getLastLocalBlockHeight();
         if (err.empty())
         {
           m_blockchain_height = blockchain_height;
@@ -108,7 +149,7 @@ namespace VarNote
         }
         else
         {
-          LOG_ERROR("Failed to get current blockchain height: " << err);
+          std::cerr << "Failed to get current blockchain height: " << err;
         }
       }
 
@@ -120,18 +161,26 @@ namespace VarNote
     };
 
   private:
-    std::string m_wallet_file;
+    std::string m_wallet_file_arg;
     std::string m_generate_new;
     std::string m_import_path;
 
     std::string m_daemon_address;
     std::string m_daemon_host;
-    int m_daemon_port;
+    uint16_t m_daemon_port;
 
-    epee::console_handlers_binder m_cmd_binder;
+    std::string m_wallet_file;
 
-    std::unique_ptr<tools::wallet2> m_wallet;
-    epee::net_utils::http::http_simple_client m_http_client;
+    std::unique_ptr<std::promise<std::error_code>> m_initResultPromise;
+
+    Common::ConsoleHandler m_consoleHandler;
+    const VarNote::Currency& m_currency;
+    Logging::LoggerManager& logManager;
+    System::Dispatcher& m_dispatcher;
+    Logging::LoggerRef logger;
+
+    std::unique_ptr<VarNote::NodeRpcProxy> m_node;
+    std::unique_ptr<VarNote::IWalletLegacy> m_wallet;
     refresh_progress_reporter_t m_refresh_progress_reporter;
   };
 }

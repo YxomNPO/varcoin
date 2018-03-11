@@ -1,6 +1,19 @@
-// Copyright (c) 2017-2018 YxomTech
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
+//
+// This file is part of Varcoin.
+//
+// Varcoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Varcoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <cstddef>
 #include <fstream>
@@ -8,27 +21,25 @@
 #include <ios>
 #include <string>
 
-#include "warnings.h"
 #include "crypto/hash.h"
-#include "../io.h"
+#include "../Io.h"
 
 using namespace std;
-using namespace crypto;
-typedef crypto::hash chash;
+typedef Crypto::Hash chash;
 
-cn_context *context;
+Crypto::cn_context *context;
 
 extern "C" {
+#ifdef _MSC_VER
+#pragma warning(disable: 4297)
+#endif
 
-PUSH_WARNINGS
-DISABLE_VS_WARNINGS(4297)
   static void hash_tree(const void *data, size_t length, char *hash) {
     if ((length & 31) != 0) {
       throw ios_base::failure("Invalid input length for tree_hash");
     }
-    tree_hash((const char (*)[32]) data, length >> 5, hash);
+    Crypto::tree_hash((const char (*)[32]) data, length >> 5, hash);
   }
-POP_WARNINGS
 
   static void slow_hash(const void *data, size_t length, char *hash) {
     cn_slow_hash(*context, data, length, *reinterpret_cast<chash *>(hash));
@@ -39,9 +50,9 @@ extern "C" typedef void hash_f(const void *, size_t, char *);
 struct hash_func {
   const string name;
   hash_f &f;
-} hashes[] = {{"fast", cn_fast_hash}, {"slow", slow_hash}, {"tree", hash_tree},
-  {"extra-blake", hash_extra_blake}, {"extra-groestl", hash_extra_groestl},
-  {"extra-jh", hash_extra_jh}, {"extra-skein", hash_extra_skein}};
+} hashes[] = {{"fast", Crypto::cn_fast_hash}, {"slow", slow_hash}, {"tree", hash_tree},
+  {"extra-blake", Crypto::hash_extra_blake}, {"extra-groestl", Crypto::hash_extra_groestl},
+  {"extra-jh", Crypto::hash_extra_jh}, {"extra-skein", Crypto::hash_extra_skein}};
 
 int main(int argc, char *argv[]) {
   hash_f *f;
@@ -66,7 +77,7 @@ int main(int argc, char *argv[]) {
     }
   }
   if (f == slow_hash) {
-    context = new cn_context();
+    context = new Crypto::cn_context();
   }
   input.open(argv[2], ios_base::in);
   for (;;) {

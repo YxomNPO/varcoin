@@ -1,6 +1,19 @@
-// Copyright (c) 2017-2018 YxomTech
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
+//
+// This file is part of Varcoin.
+//
+// Varcoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Varcoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
@@ -8,7 +21,7 @@
 #include <mutex>
 #include <vector>
 
-namespace tools {
+namespace Tools {
 
 template<typename T>
 class ObserverManager {
@@ -26,6 +39,7 @@ public:
 
   bool remove(T* observer) {
     std::unique_lock<std::mutex> lock(m_observersMutex);
+
     auto it = std::find(m_observers.begin(), m_observers.end(), observer);
     if (m_observers.end() == it) {
       return false;
@@ -90,6 +104,19 @@ public:
 
     for (T* observer : observersCopy) {
       (observer->*notification)(arg0, arg1, arg2);
+    }
+  }
+
+  template<typename F, typename Arg0, typename Arg1, typename Arg2, typename Arg3>
+  void notify(F notification, const Arg0& arg0, const Arg1& arg1, const Arg2& arg2, const Arg3& arg3) {
+    std::vector<T*> observersCopy;
+    {
+      std::unique_lock<std::mutex> lock(m_observersMutex);
+      observersCopy = m_observers;
+    }
+
+    for (T* observer : observersCopy) {
+      (observer->*notification)(arg0, arg1, arg2, arg3);
     }
   }
 

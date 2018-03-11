@@ -1,3 +1,20 @@
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
+//
+// This file is part of Varcoin.
+//
+// Varcoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Varcoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
+
 static void
 #if defined(AESNI)
 cn_slow_hash_aesni
@@ -8,7 +25,7 @@ cn_slow_hash_noaesni
 {
 #define ctx ((struct cn_ctx *) context)
   uint8_t ExpandedKey[256];
-  size_t i, j;
+  size_t i;
   __m128i *longoutput, *expkey, *xmminput, b_x;
   ALIGNED_DECL(uint64_t a[2], 16);
   hash_process(&ctx->state.hs, (const uint8_t*) data, length);
@@ -33,7 +50,7 @@ cn_slow_hash_noaesni
   for (i = 0; likely(i < MEMORY); i += INIT_SIZE_BYTE)
   {
 #if defined(AESNI)
-    for(j = 0; j < 10; j++)
+    for(size_t j = 0; j < 10; j++)
     {
       xmminput[0] = _mm_aesenc_si128(xmminput[0], expkey[j]);
       xmminput[1] = _mm_aesenc_si128(xmminput[1], expkey[j]);
@@ -150,7 +167,7 @@ cn_slow_hash_noaesni
     xmminput[7] = _mm_xor_si128(longoutput[(i >> 4) + 7], xmminput[7]);
 
 #if defined(AESNI)
-    for(j = 0; j < 10; j++)
+    for(size_t j = 0; j < 10; j++)
     {
       xmminput[0] = _mm_aesenc_si128(xmminput[0], expkey[j]);
       xmminput[1] = _mm_aesenc_si128(xmminput[1], expkey[j]);

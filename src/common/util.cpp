@@ -1,14 +1,26 @@
-// Copyright (c) 2017-2018 YxomTech
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
+//
+// This file is part of Varcoin.
+//
+// Varcoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Varcoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
 
+#include "Util.h"
 #include <cstdio>
 
-#include "include_base_utils.h"
-using namespace epee;
+#include <boost/filesystem.hpp>
 
-#include "util.h"
-#include "VarNote_config.h"
+#include "VarNoteConfig.h"
 
 #ifdef WIN32
 #include <windows.h>
@@ -19,10 +31,8 @@ using namespace epee;
 #endif
 
 
-namespace tools
+namespace Tools
 {
-  std::function<void(void)> signal_handler::m_handler;
-
 #ifdef WIN32
   std::string get_windows_version_display_string()
   {
@@ -278,27 +288,25 @@ std::string get_nix_version_display_string()
     namespace fs = boost::filesystem;
     char psz_path[MAX_PATH] = "";
 
-    if(SHGetSpecialFolderPathA(NULL, psz_path, nfolder, iscreate))
-    {
+    if(SHGetSpecialFolderPathA(NULL, psz_path, nfolder, iscreate)) {
       return psz_path;
     }
 
-    LOG_ERROR("SHGetSpecialFolderPathA() failed, could not obtain requested path.");
     return "";
   }
 #endif
 
-  std::string get_default_data_dir()
+  std::string getDefaultDataDirectory()
   {
     //namespace fs = boost::filesystem;
-    // Windows < Vista: C:\Documents and Settings\Username\Application Data\VarNote_NAME
-    // Windows >= Vista: C:\Users\Username\AppData\Roaming\VarNote_NAME
-    // Mac: ~/Library/Application Support/VarNote_NAME
-    // Unix: ~/.VarNote_NAME
+    // Windows < Vista: C:\Documents and Settings\Username\Application Data\VARNOTE_NAME
+    // Windows >= Vista: C:\Users\Username\AppData\Roaming\VARNOTE_NAME
+    // Mac: ~/Library/Application Support/VARNOTE_NAME
+    // Unix: ~/.VARNOTE_NAME
     std::string config_folder;
 #ifdef WIN32
     // Windows
-    config_folder = get_special_folder_path(CSIDL_APPDATA, true) + "/" + VarNote_NAME;
+    config_folder = get_special_folder_path(CSIDL_APPDATA, true) + "/" + VarNote::VARNOTE_NAME;
 #else
     std::string pathRet;
     char* pszHome = getenv("HOME");
@@ -309,10 +317,10 @@ std::string get_nix_version_display_string()
 #ifdef MAC_OSX
     // Mac
     pathRet /= "Library/Application Support";
-    config_folder =  (pathRet + "/" + VarNote_NAME);
+    config_folder =  (pathRet + "/" + VarNote::VARNOTE_NAME);
 #else
     // Unix
-    config_folder = (pathRet + "/." + VarNote_NAME);
+    config_folder = (pathRet + "/." + VarNote::VARNOTE_NAME);
 #endif
 #endif
 
@@ -324,22 +332,11 @@ std::string get_nix_version_display_string()
     namespace fs = boost::filesystem;
     boost::system::error_code ec;
     fs::path fs_path(path);
-    if (fs::is_directory(fs_path, ec))
-    {
+    if (fs::is_directory(fs_path, ec)) {
       return true;
     }
 
-    bool res = fs::create_directories(fs_path, ec);
-    if (res)
-    {
-      LOG_PRINT_L2("Created directory: " << path);
-    }
-    else
-    {
-      LOG_PRINT_L2("Can't create directory: " << path << ", err: "<< ec.message());
-    }
-
-    return res;
+    return fs::create_directories(fs_path, ec);
   }
 
   std::error_code replace_file(const std::string& replacement_name, const std::string& replaced_name)
@@ -361,4 +358,5 @@ std::string get_nix_version_display_string()
 #endif
     return std::error_code(code, std::system_category());
   }
+
 }

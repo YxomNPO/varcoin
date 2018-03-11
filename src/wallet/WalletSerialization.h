@@ -1,80 +1,120 @@
-// Copyright (c) 2017-2018 YxomTech
-// Distributed under the MIT/X11 software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
+//
+// This file is part of Varcoin.
+//
+// Varcoin is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Varcoin is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
-#include <boost/serialization/split_free.hpp>
-#include <boost/serialization/string.hpp>
-#include <boost/serialization/vector.hpp>
-#include <boost/serialization/utility.hpp>
-#include <boost/serialization/array.hpp>
+#include "IWallet.h"
+#include "WalletIndices.h"
+#include "Common/IInputStream.h"
+#include "Common/IOutputStream.h"
+#include "Transfers/TransfersSynchronizer.h"
+#include "Serialization/BinaryInputStreamSerializer.h"
 
-#include "VarNote_core/VarNote_boost_serialization.h"
-#include "common/unordered_containers_boost_serialization.h"
-#include "storages/portable_storage_template_helper.h"
+#include "crypto/chacha8.h"
 
-BOOST_SERIALIZATION_SPLIT_FREE(VarNote::account_base);
+namespace VarNote {
 
-namespace boost {
-namespace serialization {
+struct CryptoContext {
+  Crypto::chacha8_key key;
+  Crypto::chacha8_iv iv;
 
-template<class Archive>
-inline void load(Archive & ar, VarNote::account_base& account, const unsigned int version)
-{
-  std::string data;
-  ar >> data;
-  epee::serialization::load_t_from_binary(account, data);
-}
+  void incIv();
+};
 
-template<class Archive>
-inline void save(Archive & ar, const VarNote::account_base& account, const unsigned int version)
-{
-  std::string data;
-  epee::serialization::store_t_to_binary(account, data);
-  ar << data;
-}
+class WalletSerializer {
+public:
+  WalletSerializer(
+    ITransfersObserver& transfersObserver,
+    Crypto::PublicKey& viewPublicKey,
+    Crypto::SecretKey& viewSecretKey,
+    uint64_t& actualBalance,
+    uint64_t& pendingBalance,
+    WalletsContainer& walletsContainer,
+    TransfersSyncronizer& synchronizer,
+    SpentOutputs& spentOutputs,
+    UnlockTransactionJobs& unlockTransactions,
+    TransactionChanges& change,
+    WalletTransactions& transactions,
+    WalletTransfers& transfers,
+    uint32_t transactionSoftLockTime
+  );
+  
+  void save(const std::string& password, Common::IOutputStream& destination, bool saveDetails, bool saveCache);
+  void load(const std::string& password, Common::IInputStream& source);
 
-template<class Archive>
-inline void serialize(Archive & ar, VarNote::Transaction& tx, const unsigned int version)
-{
-  ar & tx.firstTransferId;
-  ar & tx.transferCount;
-  ar & tx.totalAmount;
-  ar & tx.fee;
-  ar & make_array(tx.hash.data(), tx.hash.size());
-  ar & tx.isCoinbase;
-  ar & tx.blockHeight;
-  ar & tx.timestamp;
-  ar & tx.extra;
-}
+private:
+  static const uint32_t SERIALIZATION_VERSION;
 
-template<class Archive>
-inline void serialize(Archive & ar, VarNote::Transfer& tr, const unsigned int version)
-{
-  ar & tr.address;
-  ar & tr.amount;
-}
+  void loadCurrentVersion(Common::IInputStream& source, const std::string& password);
+  void loadWalletV1(Common::IInputStream& source, const std::string& password);
 
-template<class Archive>
-inline void serialize(Archive & ar, VarNote::TransferDetails& details, const unsigned int version)
-{
-  ar & details.blockHeight;
-  ar & details.tx;
-  ar & details.internalOutputIndex;
-  ar & details.globalOutputIndex;
-  ar & details.spent;
-  ar & details.keyImage;
-}
+  CryptoContext generateCryptoContext(const std::string& password);
 
-template<class Archive>
-inline void serialize(Archive & ar, VarNote::UnconfirmedTransferDetails& details, const unsigned int version)
-{
-  ar & details.tx;
-  ar & details.change;
-  ar & details.sentTime;
-  ar & details.transactionId;
-}
+  void saveVersion(Common::IOutputStream& destination);
+  void saveIv(Common::IOutputStream& destination, Crypto::chacha8_iv& iv);
+  void saveKeys(Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void savePublicKey(Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void saveSecretKey(Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void saveFlags(bool saveDetails, bool saveCache, Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void saveWallets(Common::IOutputStream& destination, bool saveCache, CryptoContext& cryptoContext);
+  void saveBalances(Common::IOutputStream& destination, bool saveCache, CryptoContext& cryptoContext);
+  void saveTransfersSynchronizer(Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void saveSpentOutputs(Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void saveUnlockTransactionsJobs(Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void saveChange(Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void saveTransactions(Common::IOutputStream& destination, CryptoContext& cryptoContext);
+  void saveTransfers(Common::IOutputStream& destination, CryptoContext& cryptoContext);
 
-} // namespace serialization
-} // namespace boost
+  uint32_t loadVersion(Common::IInputStream& source);
+  void loadIv(Common::IInputStream& source, Crypto::chacha8_iv& iv);
+  void generateKey(const std::string& password, Crypto::chacha8_key& key);
+  void loadKeys(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadPublicKey(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadSecretKey(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void checkKeys();
+  void loadFlags(bool& details, bool& cache, Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadWallets(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void subscribeWallets();
+  void loadBalances(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadTransfersSynchronizer(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadSpentOutputs(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadUnlockTransactionsJobs(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadChange(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadTransactions(Common::IInputStream& source, CryptoContext& cryptoContext);
+  void loadTransfers(Common::IInputStream& source, CryptoContext& cryptoContext);
+
+  void loadWalletV1Keys(VarNote::BinaryInputStreamSerializer& serializer);
+  void loadWalletV1Details(VarNote::BinaryInputStreamSerializer& serializer);
+  void addWalletV1Details(const std::vector<WalletLegacyTransaction>& txs, const std::vector<WalletLegacyTransfer>& trs);
+  void updateTransactionsBaseStatus();
+
+  ITransfersObserver& m_transfersObserver;
+  Crypto::PublicKey& m_viewPublicKey;
+  Crypto::SecretKey& m_viewSecretKey;
+  uint64_t& m_actualBalance;
+  uint64_t& m_pendingBalance;
+  WalletsContainer& m_walletsContainer;
+  TransfersSyncronizer& m_synchronizer;
+  SpentOutputs& m_spentOutputs;
+  UnlockTransactionJobs& m_unlockTransactions;
+  TransactionChanges& m_change;
+  WalletTransactions& m_transactions;
+  WalletTransfers& m_transfers;
+  uint32_t m_transactionSoftLockTime;
+};
+
+} //namespace VarNote
