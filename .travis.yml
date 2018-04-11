@@ -32,7 +32,7 @@ matrix:
     install:
       - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
     script:
-      - make -j2
+      - mkdir build; cd build ; cmake .. && make -j2
 
   #
   # varcoin release-all (clang)
@@ -59,5 +59,5 @@ matrix:
     install:
       - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
     script:
-      - make -j2
+      - mkdir build; cd build ; cmake .. && make -j2
 
