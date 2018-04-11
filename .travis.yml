@@ -36,26 +36,26 @@ matrix:
   #
   # varcoin release-all (clang)
   #
-  - os: linux
-    compiler: clang
-    addons:
-      apt:
-        packages:
-          - build-essential
-          - cmake
-          - clang
-          - libdb++-dev
-          - libdb-dev
-          - libgtest-dev
-          - libminiupnpc-dev
-          - libssl-dev
-          - libssl1.0.0
-      sources:
-        - ubuntu-toolchain-r-test
-    before_install:
-      - sudo apt-get -q update
-    install:
-      - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
-    script:
-      - chmod 777 * -R ; mkdir build; cd build ; cmake .. && make -j2
+  #- os: linux
+  #  compiler: clang
+  #  addons:
+  #    apt:
+  #      packages:
+  #        - build-essential
+  #        - cmake
+  #        - clang
+  #        - libdb++-dev
+  #        - libdb-dev
+  #        - libgtest-dev
+  #        - libminiupnpc-dev
+  #        - libssl-dev
+  #        - libssl1.0.0
+  #    sources:
+  #      - ubuntu-toolchain-r-test
+  #  before_install:
+  #    - sudo apt-get -q update
+  #  install:
+  #    - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
+  #  script:
+  #    - chmod 777 * -R ; mkdir build; cd build ; cmake .. && make -j2
 
