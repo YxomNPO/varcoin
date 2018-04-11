@@ -1,0 +1,63 @@
+sudo: required
+dist: trusty
+language: cpp
+
+matrix:
+  include:
+
+  #
+  # varcoin release-all (gcc)
+  #
+  - os: linux
+    compiler: gcc
+    addons:
+      apt:
+        packages:
+          - build-essential
+          - cmake
+          - g++
+          - gcc
+          - clang
+          - libdb++-dev
+          - libdb-dev
+          - libgtest-dev
+          - libminiupnpc-dev
+          - libssl-dev
+          - libssl1.0.0
+      sources:
+        - ubuntu-toolchain-r-test
+    before_install:
+      - sudo add-apt-repository -y ppa:kojoley/boost
+      - sudo apt-get -q update
+    install:
+      - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
+    script:
+      - make -j2
+
+  #
+  # varcoin release-all (clang)
+  #
+  - os: linux
+    compiler: clang
+    addons:
+      apt:
+        packages:
+          - build-essential
+          - cmake
+          - clang
+          - libdb++-dev
+          - libdb-dev
+          - libgtest-dev
+          - libminiupnpc-dev
+          - libssl-dev
+          - libssl1.0.0
+      sources:
+        - ubuntu-toolchain-r-test
+    before_install:
+      - sudo add-apt-repository -y ppa:kojoley/boost
+      - sudo apt-get -q update
+    install:
+      - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
+    script:
+      - make -j2
+
