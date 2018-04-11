@@ -27,7 +27,6 @@ matrix:
       sources:
         - ubuntu-toolchain-r-test
     before_install:
-      - sudo add-apt-repository -y ppa:kojoley/boost
       - sudo apt-get -q update
     install:
       - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
@@ -54,7 +53,6 @@ matrix:
       sources:
         - ubuntu-toolchain-r-test
     before_install:
-      - sudo add-apt-repository -y ppa:kojoley/boost
       - sudo apt-get -q update
     install:
       - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
