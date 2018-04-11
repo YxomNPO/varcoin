@@ -1,11 +1,14 @@
-# Varcoin
-Similar CryptoNote protocol implementation. The next generation of real  
-anonymity and application level encrypted currency.  
-ÀàËÆCryptoNoteĞ­ÒéµÄÊµÏÖ¡£ÏÂÒ»´úÓ¦ÓÃ²ãÃæ¼ÓÃÜ»õ±Ò¡£  
+# Varcoin 
 
-## How to Build ÈçºÎ±àÒë
+[![Build Status](https://travis-ci.org/xqymain/varcoin.svg?branch=master)](https://travis-ci.org/xqymain/varcoin) 
+
+Similar CryptoNote protocol implementation. The next generation of real 
+anonymity and application level encrypted currency. 
+ç±»ä¼¼CryptoNoteåè®®çš„å®ç°ã€‚ä¸‹ä¸€ä»£åº”ç”¨å±‚é¢åŠ å¯†è´§å¸ã€‚ 
+
+## How to Build å¦‚ä½•ç¼–è¯‘
 Dependencies: GCC 4.7.3 or later, CMake 2.8.6 or later, and Boost 1.55.  
-ÒªÇó£º GCC 4.7.3»ò¸ü¸ß£¬ CMake 2.8.6»ò¸ü¸ß£¬ÒÔ¼°Boost 1.55  
+è¦æ±‚ï¼š GCC 4.7.3æˆ–æ›´é«˜ï¼Œ CMake 2.8.6æˆ–æ›´é«˜ï¼Œä»¥åŠBoost 1.55  
 
 Download to:   
 http://gcc.gnu.org/  
@@ -14,8 +17,8 @@ http://www.boost.org/
 
 To build, change to a directory where this file is located, and run `make`.  
 The resulting executables can be found in build/release/src.  
-Òª¹¹½¨£¬ÇĞ»»µ½¸ÃÎÄ¼şËùÔÚµÄÄ¿Â¼£¬²¢ÔËĞĞ`make`¡£  
-Éú³ÉµÄ¿ÉÖ´ĞĞÎÄ¼şÎ»ÓÚbuild/release/src¡£  
+è¦æ„å»ºï¼Œåˆ‡æ¢åˆ°è¯¥æ–‡ä»¶æ‰€åœ¨çš„ç›®å½•ï¼Œå¹¶è¿è¡Œ`make`ã€‚  
+ç”Ÿæˆçš„å¯æ‰§è¡Œæ–‡ä»¶ä½äºbuild/release/srcã€‚  
 
 Advanced options:  
 Parallel build: run `make -j<number of threads>` instead of `make`.  
@@ -24,13 +27,13 @@ Test suite: run `make test-release` to run tests in addition to building.
 Running `make test-debug` will do the same to the debug version.  
 Building with Clang: it may be possible to use Clang instead of GCC, but this may not work everywhere.  
 To build, run `export CC=clang CXX=clang++` before running `make`.  
-¸ß¼¶Ñ¡Ïî£º  
-²¢ĞĞ¹¹½¨£ºÔËĞĞ`make -j <Ïß³ÌÊı>`Ìæ»»`make`¡£  
-µ÷ÊÔ¹¹½¨£ºÔËĞĞ`make build-debug`¡£  
-²âÊÔÌ×¼ş£º³ıÁË¹¹½¨Ö®Íâ£¬ÔËĞĞ`make test-release`À´ÔËĞĞ²âÊÔ¡£  
-ÔËĞĞ`make test-debug`½«¶Ôµ÷ÊÔ°æ±¾Ö´ĞĞÏàÍ¬µÄ²Ù×÷¡£  
-ÓÃClang¹¹½¨£º¿ÉÒÔÊ¹ÓÃClang£¬²»Ñ¡ÔñGCC£¬µ«¿ÉÄÜ´æÔÚÎÊÌâ¡£  
-ÔÚÔËĞĞ`make`Ö®Ç°£¬ÔËĞĞ`export CC=clang CXX=clang++`¡£  
+é«˜çº§é€‰é¡¹ï¼š  
+å¹¶è¡Œæ„å»ºï¼šè¿è¡Œ`make -j <çº¿ç¨‹æ•°>`æ›¿æ¢`make`ã€‚  
+è°ƒè¯•æ„å»ºï¼šè¿è¡Œ`make build-debug`ã€‚  
+æµ‹è¯•å¥—ä»¶ï¼šé™¤äº†æ„å»ºä¹‹å¤–ï¼Œè¿è¡Œ`make test-release`æ¥è¿è¡Œæµ‹è¯•ã€‚  
+è¿è¡Œ`make test-debug`å°†å¯¹è°ƒè¯•ç‰ˆæœ¬æ‰§è¡Œç›¸åŒçš„æ“ä½œã€‚  
+ç”¨Clangæ„å»ºï¼šå¯ä»¥ä½¿ç”¨Clangï¼Œä¸é€‰æ‹©GCCï¼Œä½†å¯èƒ½å­˜åœ¨é—®é¢˜ã€‚  
+åœ¨è¿è¡Œ`make`ä¹‹å‰ï¼Œè¿è¡Œ`export CC=clang CXX=clang++`ã€‚  
 
 On Windows:  
 Dependencies: MSVC 2013 or later, CMake 2.8.6 or later, and Boost 1.55.  
@@ -45,11 +48,11 @@ cd build
 cmake -G "Visual Studio 12 Win64" ..  
 
 
-Äú»¹¿ÉÒÔÔÚ https://github.com/xqymain/varcoin-wiki ÀïÕÒµ½¶ş½øÖÆÎÄ¼şµÄÏÂÔØºÍÃüÁîµÄÓÃ·¨¡£
+æ‚¨è¿˜å¯ä»¥åœ¨ https://github.com/xqymain/varcoin-wiki é‡Œæ‰¾åˆ°äºŒè¿›åˆ¶æ–‡ä»¶çš„ä¸‹è½½å’Œå‘½ä»¤çš„ç”¨æ³•ã€‚
 
 You can also find the usage of binary downloads and commands at https://github.com/xqymain/varcoin-wiki .  
 
-ĞèÒª×¢ÒâµÄÊÇ£¬Èç¹ûÄúµÄÉè±¸CPU²»Ö§³ÖÌØ¶¨µÄÖ¸Áî¼¯£¬²»»áÍ¨¹ı±àÒë£»²¢Õë¶Ô²»Í¬´¦ÀíÆ÷½øĞĞÓÅ»¯£¬ÎşÉüÁË²¿·Ö¿çÆ½Ì¨ĞÔ¡£  
-±¾³ÌĞòÔÚWindowsÏÂµÄĞÔÄÜÔ¶²»¼°Linux£¬Èç¹û¿ÉÄÜ£¬½¨ÒéÄúÔÚLinuxÏÂÊ¹ÓÃ¡£  
+éœ€è¦æ³¨æ„çš„æ˜¯ï¼Œå¦‚æœæ‚¨çš„è®¾å¤‡CPUä¸æ”¯æŒç‰¹å®šçš„æŒ‡ä»¤é›†ï¼Œä¸ä¼šé€šè¿‡ç¼–è¯‘ï¼›å¹¶é’ˆå¯¹ä¸åŒå¤„ç†å™¨è¿›è¡Œä¼˜åŒ–ï¼Œç‰ºç‰²äº†éƒ¨åˆ†è·¨å¹³å°æ€§ã€‚  
+æœ¬ç¨‹åºåœ¨Windowsä¸‹çš„æ€§èƒ½è¿œä¸åŠLinuxï¼Œå¦‚æœå¯èƒ½ï¼Œå»ºè®®æ‚¨åœ¨Linuxä¸‹ä½¿ç”¨ã€‚  
 It should be noted that if your device's CPU does not support a particular set of instructions, it will not be compiled; and optimized for different processors, at the expense of some cross-platform.  
 The performance of this program under Windows is far less than that of Linux. If possible, it is recommended that you use it under Linux.
