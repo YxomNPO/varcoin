@@ -1,63 +1,3 @@
-sudo: required
-dist: xenial
-language: cpp
-
-matrix:
-  include:
-
-  #
-  # varcoin release-all (gcc)
-  #
-  - os: linux
-    compiler: gcc
-    addons:
-      apt:
-        packages:
-          - build-essential
-          - cmake
-          - g++
-          - gcc
-          - clang
-          - libdb++-dev
-          - libdb-dev
-          - libgtest-dev
-          - libminiupnpc-dev
-          - libssl-dev
-          - libssl1.0.0
-      so urces:
-        - ubuntu-toolchain-r-test
-    before_install:
-      - sudo apt-get -q update
-    install:
-      - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
-    script:
-      - chmod 777 * -R ; mkdir build; cd build ; cmake .. && make -j2
-
-  #
-  # varcoin release-all (clang)
-  #
-  #- os: linux
-  #  compiler: clang
-  #  addons:
-  #    apt:
-  #      packages:
-  #        - build-essential
-  #        - cmake
-  #        - clang
-  #        - libdb++-dev
-  #        - libdb-dev
-  #        - libgtest-dev
-  #        - libminiupnpc-dev
-  #        - libssl-dev
-  #        - libssl1.0.0
-  #    sources:
-  #      - ubuntu-toolchain-r-test
-  #  before_install:
-  #    - sudo apt-get -q update
-  #  install:
-  #    - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
-  #  script:
-  #    - chmod 777 * -R ; mkdir build; cd build ; cmake sudo: required
 dist: xenial
 language: cpp
 
@@ -93,8 +33,8 @@ matrix:
       - chmod 777 * -R ; mkdir build; cd build
       - cmake .. && make -j2
       - mkdir gh-pages ; cd gh-pages
-      - mkdir bin ; cp ../../src/varcoind bin ; cp ../../src/miner bin ; cp ../../src/connectivity_tool bin ; cp ../../src/walletd bin ; cp ../../src/simplewallet bin
-      - mkdir tests ; cp ../../tests/*_tests tests
+      - mkdir bin ; cp ../src/varcoind bin ; cp ../src/miner bin ; cp ../src/connectivity_tool bin ; cp ../src/walletd bin ; cp ../../src/simplewallet bin
+      - mkdir tests ; cp ../tests/*_tests tests
       - git init && git config user.name "xqymain" && git config user.email "201330010330@hnu.edu.cn" && git checkout  gh-pages && git add . && git commit -m "Update Releases" && git push --force --quiet "https://${GH_TOKEN}@${GH_REF}" gh-pages:gh-pages 
 
 env:
