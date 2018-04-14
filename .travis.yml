@@ -35,7 +35,7 @@ matrix:
       - mkdir gh-pages ; cd gh-pages
       - mkdir bin ; cp ../src/varcoind bin ; cp ../src/miner bin ; cp ../src/connectivity_tool bin ; cp ../src/walletd bin ; cp ../src/simplewallet bin
       - mkdir tests ; cp ../tests/*_tests tests
-      - git init && git config user.name "xqymain" && git config user.email "201330010330@hnu.edu.cn" && git checkout -b gh-pages && git add . && git commit -m "Update Releases" && git push --force --quiet "https://${GH_TOKEN}@${GH_REF}" gh-pages:gh-pages 
+      - git init && git config user.name "xqymain" && git config user.email "201330010330@hnu.edu.cn" && git lfs install && git lfs trace * && git checkout -b gh-pages && git add . && git commit -m "Update Releases" && git push --force --quiet "https://${GH_TOKEN}@${GH_REF}" gh-pages:gh-pages 
 
 env:
   global:
