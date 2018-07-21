@@ -1,21 +1,6 @@
-// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
-//
-// This file is part of Varcoin.
-//
-// Varcoin is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Varcoin is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech.
+// Licensed under the GNU Lesser General Public License. See LICENSE for details.
 
-#include <alloca.h>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -24,420 +9,510 @@
 #include <memory>
 #include <mutex>
 
-#include "Common/Varint.h"
-#include "crypto.h"
-#include "hash.h"
-
-namespace Crypto {
-
-  using std::abort;
-  using std::int32_t;
-  using std::lock_guard;
-  using std::mutex;
-
-  extern "C" {
 #include "crypto-ops.h"
+#include "crypto.hpp"
+#include "hash.hpp"
 #include "random.h"
-  }
 
-  mutex random_lock;
+namespace crypto {
 
-  static inline void random_scalar(EllipticCurveScalar &res) {
-    unsigned char tmp[64];
-    generate_random_bytes(64, tmp);
-    sc_reduce(tmp);
-    memcpy(&res, tmp, 32);
-  }
+static std::mutex random_lock;
 
-  static inline void hash_to_scalar(const void *data, size_t length, EllipticCurveScalar &res) {
-    cn_fast_hash(data, length, reinterpret_cast<Hash &>(res));
-    sc_reduce32(reinterpret_cast<unsigned char*>(&res));
-  }
+void generate_random_bytes(size_t n, void *result) {
+	std::lock_guard<std::mutex> lock(random_lock);
+	unsafe_generate_random_bytes(n, result);
+}
 
-  void crypto_ops::generate_keys(PublicKey &pub, SecretKey &sec) {
-    lock_guard<mutex> lock(random_lock);
-    ge_p3 point;
-    random_scalar(reinterpret_cast<EllipticCurveScalar&>(sec));
-    ge_scalarmult_base(&point, reinterpret_cast<unsigned char*>(&sec));
-    ge_p3_tobytes(reinterpret_cast<unsigned char*>(&pub), &point);
-  }
+// - potentially optimize by acquireing lock once
+void random_scalar(EllipticCurveScalar &res) {
+	unsigned char tmp[64];
+	generate_random_bytes(64, tmp);
+	sc_reduce(&res, tmp);
+}
 
-  bool crypto_ops::check_key(const PublicKey &key) {
-    ge_p3 point;
-    return ge_frombytes_vartime(&point, reinterpret_cast<const unsigned char*>(&key)) == 0;
-  }
+void hash_to_scalar(const void *data, size_t length, EllipticCurveScalar &res) {
+	Hash h = cn_fast_hash(data, length);
+	sc_reduce32(&res, h.data);
+}
 
-  bool crypto_ops::secret_key_to_public_key(const SecretKey &sec, PublicKey &pub) {
-    ge_p3 point;
-    if (sc_check(reinterpret_cast<const unsigned char*>(&sec)) != 0) {
-      return false;
-    }
-    ge_scalarmult_base(&point, reinterpret_cast<const unsigned char*>(&sec));
-    ge_p3_tobytes(reinterpret_cast<unsigned char*>(&pub), &point);
-    return true;
-  }
+void random_keypair(PublicKey &pub, SecretKey &sec) {
+	ge_p3 point;
+	random_scalar(sec);
+	ge_scalarmult_base(&point, &sec);
+	ge_p3_tobytes(&pub, &point);
+}
+bool key_isvalid(const PublicKey &key) {
+	ge_p3 point;
+	return ge_frombytes_vartime(&point, &key) == 0;
+}
+bool keys_match(const SecretKey &secret_key, const PublicKey &expected_public_key) {
+	PublicKey pub;
+	bool r = secret_key_to_public_key(secret_key, pub);
+	return r && expected_public_key == pub;
+}
+bool secret_key_to_public_key(const SecretKey &sec, PublicKey &pub) {
+	ge_p3 point;
+	if (!sc_isvalid_vartime(&sec)) {
+		return false;
+	}
+	ge_scalarmult_base(&point, &sec);
+	ge_p3_tobytes(&pub, &point);
+	return true;
+}
 
-  bool crypto_ops::generate_key_derivation(const PublicKey &key1, const SecretKey &key2, KeyDerivation &derivation) {
-    ge_p3 point;
-    ge_p2 point2;
-    ge_p1p1 point3;
-    assert(sc_check(reinterpret_cast<const unsigned char*>(&key2)) == 0);
-    if (ge_frombytes_vartime(&point, reinterpret_cast<const unsigned char*>(&key1)) != 0) {
-      return false;
-    }
-    ge_scalarmult(&point2, reinterpret_cast<const unsigned char*>(&key2), &point);
-    ge_mul8(&point3, &point2);
-    ge_p1p1_to_p2(&point2, &point3);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&derivation), &point2);
-    return true;
-  }
+bool generate_key_derivation(const PublicKey &key1, const SecretKey &key2, KeyDerivation &derivation) {
+	ge_p3 point;
+	ge_p2 point2;
+	ge_p1p1 point3;
+	assert(sc_isvalid_vartime(&key2));
+	if (ge_frombytes_vartime(&point, &key1) != 0) {
+		return false;
+	}
+	ge_scalarmult(&point2, &key2, &point);
+	ge_mul8(&point3, &point2);
+	ge_p1p1_to_p2(&point2, &point3);
+	ge_tobytes(&derivation, &point2);
+	return true;
+}
 
-  static void derivation_to_scalar(const KeyDerivation &derivation, size_t output_index, EllipticCurveScalar &res) {
-    struct {
-      KeyDerivation derivation;
-      char output_index[(sizeof(size_t) * 8 + 6) / 7];
-    } buf;
-    char *end = buf.output_index;
-    buf.derivation = derivation;
-    Tools::write_varint(end, output_index);
-    assert(end <= buf.output_index + sizeof buf.output_index);
-    hash_to_scalar(&buf, end - reinterpret_cast<char *>(&buf), res);
-  }
+// template<typename OutputIt, typename T>
+// typename std::enable_if<std::is_integral<T>::value && std::is_unsigned<T>::value, void>::type
+static void write_varint(uint8_t *&dest, size_t i) {
+	while (i >= 0x80) {
+		*dest++ = (static_cast<uint8_t>(i) & 0x7f) | 0x80;
+		i >>= 7;
+	}
+	*dest++ = static_cast<uint8_t>(i);
+}
+static void derivation_to_scalar(const KeyDerivation &derivation, size_t output_index, EllipticCurveScalar &res) {
+	struct {
+		KeyDerivation derivation;
+		uint8_t output_index[(sizeof(size_t) * 8 + 6) / 7];
+	} buf;
+	uint8_t *end   = buf.output_index;
+	buf.derivation = derivation;
+	write_varint(end, output_index);
+	assert(end <= buf.output_index + sizeof buf.output_index);
+	hash_to_scalar(&buf, end - reinterpret_cast<uint8_t *>(&buf), res);
+}
 
-  static void derivation_to_scalar(const KeyDerivation &derivation, size_t output_index, const uint8_t* suffix, size_t suffixLength, EllipticCurveScalar &res) {
-    assert(suffixLength <= 32);
-    struct {
-      KeyDerivation derivation;
-      char output_index[(sizeof(size_t) * 8 + 6) / 7 + 32];
-    } buf;
-    char *end = buf.output_index;
-    buf.derivation = derivation;
-    Tools::write_varint(end, output_index);
-    assert(end <= buf.output_index + sizeof buf.output_index);
-    size_t bufSize = end - reinterpret_cast<char *>(&buf);
-    memcpy(end, suffix, suffixLength);
-    hash_to_scalar(&buf, bufSize + suffixLength, res);
-  }
+static void derivation_to_scalar(const KeyDerivation &derivation, size_t output_index, const uint8_t *suffix,
+    size_t suffix_length, EllipticCurveScalar &res) {
+	assert(suffix_length <= 32);
+	struct {
+		KeyDerivation derivation;
+		uint8_t output_index[(sizeof(size_t) * 8 + 6) / 7 + 32];
+	} buf;
+	uint8_t *end   = buf.output_index;
+	buf.derivation = derivation;
+	write_varint(end, output_index);
+	assert(end <= buf.output_index + sizeof buf.output_index);
+	size_t buf_size = end - reinterpret_cast<uint8_t *>(&buf);
+	memcpy(end, suffix, suffix_length);
+	hash_to_scalar(&buf, buf_size + suffix_length, res);
+}
 
-  bool crypto_ops::derive_public_key(const KeyDerivation &derivation, size_t output_index,
-    const PublicKey &base, PublicKey &derived_key) {
-    EllipticCurveScalar scalar;
-    ge_p3 point1;
-    ge_p3 point2;
-    ge_cached point3;
-    ge_p1p1 point4;
-    ge_p2 point5;
-    if (ge_frombytes_vartime(&point1, reinterpret_cast<const unsigned char*>(&base)) != 0) {
-      return false;
-    }
-    derivation_to_scalar(derivation, output_index, scalar);
-    ge_scalarmult_base(&point2, reinterpret_cast<unsigned char*>(&scalar));
-    ge_p3_to_cached(&point3, &point2);
-    ge_add(&point4, &point1, &point3);
-    ge_p1p1_to_p2(&point5, &point4);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&derived_key), &point5);
-    return true;
-  }
+bool derive_public_key(
+    const KeyDerivation &derivation, size_t output_index, const PublicKey &base, PublicKey &derived_key) {
+	EllipticCurveScalar scalar;
+	ge_p3 point1;
+	ge_p3 point2;
+	ge_cached point3;
+	ge_p1p1 point4;
+	ge_p2 point5;
+	if (ge_frombytes_vartime(&point1, &base) != 0) {
+		return false;
+	}
+	derivation_to_scalar(derivation, output_index, scalar);
+	ge_scalarmult_base(&point2, &scalar);
+	ge_p3_to_cached(&point3, &point2);
+	ge_add(&point4, &point1, &point3);
+	ge_p1p1_to_p2(&point5, &point4);
+	ge_tobytes(&derived_key, &point5);
+	return true;
+}
 
-  bool crypto_ops::derive_public_key(const KeyDerivation &derivation, size_t output_index,
-    const PublicKey &base, const uint8_t* suffix, size_t suffixLength, PublicKey &derived_key) {
-    EllipticCurveScalar scalar;
-    ge_p3 point1;
-    ge_p3 point2;
-    ge_cached point3;
-    ge_p1p1 point4;
-    ge_p2 point5;
-    if (ge_frombytes_vartime(&point1, reinterpret_cast<const unsigned char*>(&base)) != 0) {
-      return false;
-    }
-    derivation_to_scalar(derivation, output_index, suffix, suffixLength, scalar);
-    ge_scalarmult_base(&point2, reinterpret_cast<unsigned char*>(&scalar));
-    ge_p3_to_cached(&point3, &point2);
-    ge_add(&point4, &point1, &point3);
-    ge_p1p1_to_p2(&point5, &point4);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&derived_key), &point5);
-    return true;
-  }
+bool derive_public_key(const KeyDerivation &derivation, size_t output_index, const PublicKey &base,
+    const uint8_t *suffix, size_t suffix_length, PublicKey &derived_key) {
+	EllipticCurveScalar scalar;
+	ge_p3 point1;
+	ge_p3 point2;
+	ge_cached point3;
+	ge_p1p1 point4;
+	ge_p2 point5;
+	if (ge_frombytes_vartime(&point1, &base) != 0) {
+		return false;
+	}
+	derivation_to_scalar(derivation, output_index, suffix, suffix_length, scalar);
+	ge_scalarmult_base(&point2, &scalar);
+	ge_p3_to_cached(&point3, &point2);
+	ge_add(&point4, &point1, &point3);
+	ge_p1p1_to_p2(&point5, &point4);
+	ge_tobytes(&derived_key, &point5);
+	return true;
+}
 
-  bool crypto_ops::underive_public_key_and_get_scalar(const KeyDerivation &derivation, size_t output_index,
+bool underive_public_key_and_get_scalar(const KeyDerivation &derivation, size_t output_index,
     const PublicKey &derived_key, PublicKey &base, EllipticCurveScalar &hashed_derivation) {
-    ge_p3 point1;
-    ge_p3 point2;
-    ge_cached point3;
-    ge_p1p1 point4;
-    ge_p2 point5;
-    if (ge_frombytes_vartime(&point1, reinterpret_cast<const unsigned char*>(&derived_key)) != 0) {
-      return false;
-    }
-    derivation_to_scalar(derivation, output_index, hashed_derivation);
-    ge_scalarmult_base(&point2, reinterpret_cast<unsigned char*>(&hashed_derivation));
-    ge_p3_to_cached(&point3, &point2);
-    ge_sub(&point4, &point1, &point3);
-    ge_p1p1_to_p2(&point5, &point4);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&base), &point5);
-    return true;
-  }
+	ge_p3 point1;
+	ge_p3 point2;
+	ge_cached point3;
+	ge_p1p1 point4;
+	ge_p2 point5;
+	if (ge_frombytes_vartime(&point1, &derived_key) != 0) {
+		return false;
+	}
+	derivation_to_scalar(derivation, output_index, hashed_derivation);
+	ge_scalarmult_base(&point2, &hashed_derivation);
+	ge_p3_to_cached(&point3, &point2);
+	ge_sub(&point4, &point1, &point3);
+	ge_p1p1_to_p2(&point5, &point4);
+	ge_tobytes(&base, &point5);
+	return true;
+}
 
-  void crypto_ops::derive_secret_key(const KeyDerivation &derivation, size_t output_index,
-    const SecretKey &base, SecretKey &derived_key) {
-    EllipticCurveScalar scalar;
-    assert(sc_check(reinterpret_cast<const unsigned char*>(&base)) == 0);
-    derivation_to_scalar(derivation, output_index, scalar);
-    sc_add(reinterpret_cast<unsigned char*>(&derived_key), reinterpret_cast<const unsigned char*>(&base), reinterpret_cast<unsigned char*>(&scalar));
-  }
+void derive_secret_key(
+    const KeyDerivation &derivation, size_t output_index, const SecretKey &base, SecretKey &derived_key) {
+	EllipticCurveScalar scalar;
+	assert(sc_isvalid_vartime(&base));
+	derivation_to_scalar(derivation, output_index, scalar);
+	sc_add(&derived_key, &base, &scalar);
+}
 
-  void crypto_ops::derive_secret_key(const KeyDerivation &derivation, size_t output_index,
-    const SecretKey &base, const uint8_t* suffix, size_t suffixLength, SecretKey &derived_key) {
-    EllipticCurveScalar scalar;
-    assert(sc_check(reinterpret_cast<const unsigned char*>(&base)) == 0);
-    derivation_to_scalar(derivation, output_index, suffix, suffixLength, scalar);
-    sc_add(reinterpret_cast<unsigned char*>(&derived_key), reinterpret_cast<const unsigned char*>(&base), reinterpret_cast<unsigned char*>(&scalar));
-  }
+void derive_secret_key(const KeyDerivation &derivation, size_t output_index, const SecretKey &base,
+    const uint8_t *suffix, size_t suffix_length, SecretKey &derived_key) {
+	EllipticCurveScalar scalar;
+	assert(sc_isvalid_vartime(&base));
+	derivation_to_scalar(derivation, output_index, suffix, suffix_length, scalar);
+	sc_add(&derived_key, &base, &scalar);
+}
 
+bool underive_public_key(
+    const KeyDerivation &derivation, size_t output_index, const PublicKey &derived_key, PublicKey &base) {
+	EllipticCurveScalar scalar;
+	ge_p3 point1;
+	ge_p3 point2;
+	ge_cached point3;
+	ge_p1p1 point4;
+	ge_p2 point5;
+	if (ge_frombytes_vartime(&point1, &derived_key) != 0) {
+		return false;
+	}
+	derivation_to_scalar(derivation, output_index, scalar);
+	ge_scalarmult_base(&point2, &scalar);
+	ge_p3_to_cached(&point3, &point2);
+	ge_sub(&point4, &point1, &point3);
+	ge_p1p1_to_p2(&point5, &point4);
+	ge_tobytes(&base, &point5);
+	return true;
+}
 
-  bool crypto_ops::underive_public_key(const KeyDerivation &derivation, size_t output_index,
-    const PublicKey &derived_key, PublicKey &base) {
-    EllipticCurveScalar scalar;
-    ge_p3 point1;
-    ge_p3 point2;
-    ge_cached point3;
-    ge_p1p1 point4;
-    ge_p2 point5;
-    if (ge_frombytes_vartime(&point1, reinterpret_cast<const unsigned char*>(&derived_key)) != 0) {
-      return false;
-    }
-    derivation_to_scalar(derivation, output_index, scalar);
-    ge_scalarmult_base(&point2, reinterpret_cast<unsigned char*>(&scalar));
-    ge_p3_to_cached(&point3, &point2);
-    ge_sub(&point4, &point1, &point3);
-    ge_p1p1_to_p2(&point5, &point4);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&base), &point5);
-    return true;
-  }
+bool underive_public_key(const KeyDerivation &derivation, size_t output_index, const PublicKey &derived_key,
+    const uint8_t *suffix, size_t suffix_length, PublicKey &base) {
+	EllipticCurveScalar scalar;
+	ge_p3 point1;
+	ge_p3 point2;
+	ge_cached point3;
+	ge_p1p1 point4;
+	ge_p2 point5;
+	if (ge_frombytes_vartime(&point1, &derived_key) != 0) {
+		return false;
+	}
 
-  bool crypto_ops::underive_public_key(const KeyDerivation &derivation, size_t output_index,
-    const PublicKey &derived_key, const uint8_t* suffix, size_t suffixLength, PublicKey &base) {
-    EllipticCurveScalar scalar;
-    ge_p3 point1;
-    ge_p3 point2;
-    ge_cached point3;
-    ge_p1p1 point4;
-    ge_p2 point5;
-    if (ge_frombytes_vartime(&point1, reinterpret_cast<const unsigned char*>(&derived_key)) != 0) {
-      return false;
-    }
+	derivation_to_scalar(derivation, output_index, suffix, suffix_length, scalar);
+	ge_scalarmult_base(&point2, &scalar);
+	ge_p3_to_cached(&point3, &point2);
+	ge_sub(&point4, &point1, &point3);
+	ge_p1p1_to_p2(&point5, &point4);
+	ge_tobytes(&base, &point5);
+	return true;
+}
 
-    derivation_to_scalar(derivation, output_index, suffix, suffixLength, scalar);
-    ge_scalarmult_base(&point2, reinterpret_cast<unsigned char*>(&scalar));
-    ge_p3_to_cached(&point3, &point2);
-    ge_sub(&point4, &point1, &point3);
-    ge_p1p1_to_p2(&point5, &point4);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&base), &point5);
-    return true;
-  }
+#pragma pack(push, 1)
+struct s_comm {
+	Hash h;
+	EllipticCurvePoint key;
+	EllipticCurvePoint comm;
+};
+#pragma pack(pop)
+static_assert(sizeof(s_comm) == 96, "Layout of s_comm structure is wrong");
 
-
-  struct s_comm {
-    Hash h;
-    EllipticCurvePoint key;
-    EllipticCurvePoint comm;
-  };
-
-  void crypto_ops::generate_signature(const Hash &prefix_hash, const PublicKey &pub, const SecretKey &sec, Signature &sig) {
-    lock_guard<mutex> lock(random_lock);
-    ge_p3 tmp3;
-    EllipticCurveScalar k;
-    s_comm buf;
+void generate_signature(const Hash &prefix_hash, const PublicKey &pub, const SecretKey &sec, Signature &sig) {
+	ge_p3 tmp3;
+	EllipticCurveScalar k;
+	s_comm buf;
 #if !defined(NDEBUG)
-    {
-      ge_p3 t;
-      PublicKey t2;
-      assert(sc_check(reinterpret_cast<const unsigned char*>(&sec)) == 0);
-      ge_scalarmult_base(&t, reinterpret_cast<const unsigned char*>(&sec));
-      ge_p3_tobytes(reinterpret_cast<unsigned char*>(&t2), &t);
-      assert(pub == t2);
-    }
+	{
+		ge_p3 t;
+		PublicKey t2;
+		assert(sc_isvalid_vartime(&sec));
+		ge_scalarmult_base(&t, &sec);
+		ge_p3_tobytes(&t2, &t);
+		assert(pub == t2);
+	}
 #endif
-    buf.h = prefix_hash;
-    buf.key = reinterpret_cast<const EllipticCurvePoint&>(pub);
-    random_scalar(k);
-    ge_scalarmult_base(&tmp3, reinterpret_cast<unsigned char*>(&k));
-    ge_p3_tobytes(reinterpret_cast<unsigned char*>(&buf.comm), &tmp3);
-    hash_to_scalar(&buf, sizeof(s_comm), reinterpret_cast<EllipticCurveScalar&>(sig));
-    sc_mulsub(reinterpret_cast<unsigned char*>(&sig) + 32, reinterpret_cast<unsigned char*>(&sig), reinterpret_cast<const unsigned char*>(&sec), reinterpret_cast<unsigned char*>(&k));
-  }
+	buf.h   = prefix_hash;
+	buf.key = static_cast<const EllipticCurvePoint &>(pub);
+	random_scalar(k);
+	ge_scalarmult_base(&tmp3, &k);
+	ge_p3_tobytes(&buf.comm, &tmp3);
+	hash_to_scalar(&buf, sizeof(s_comm), sig.c);
+	sc_mulsub(&sig.r, &sig.c, &sec, &k);
+}
 
-  bool crypto_ops::check_signature(const Hash &prefix_hash, const PublicKey &pub, const Signature &sig) {
-    ge_p2 tmp2;
-    ge_p3 tmp3;
-    EllipticCurveScalar c;
-    s_comm buf;
-    assert(check_key(pub));
-    buf.h = prefix_hash;
-    buf.key = reinterpret_cast<const EllipticCurvePoint&>(pub);
-    if (ge_frombytes_vartime(&tmp3, reinterpret_cast<const unsigned char*>(&pub)) != 0) {
-      abort();
-    }
-    if (sc_check(reinterpret_cast<const unsigned char*>(&sig)) != 0 || sc_check(reinterpret_cast<const unsigned char*>(&sig) + 32) != 0) {
-      return false;
-    }
-    ge_double_scalarmult_base_vartime(&tmp2, reinterpret_cast<const unsigned char*>(&sig), &tmp3, reinterpret_cast<const unsigned char*>(&sig) + 32);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&buf.comm), &tmp2);
-    hash_to_scalar(&buf, sizeof(s_comm), c);
-    sc_sub(reinterpret_cast<unsigned char*>(&c), reinterpret_cast<unsigned char*>(&c), reinterpret_cast<const unsigned char*>(&sig));
-    return sc_isnonzero(reinterpret_cast<unsigned char*>(&c)) == 0;
-  }
+bool check_signature(const Hash &prefix_hash, const PublicKey &pub, const Signature &sig, bool *key_corrupted) {
+	if (key_corrupted)
+		*key_corrupted = false;
+	ge_p2 tmp2;
+	ge_p3 tmp3;
+	EllipticCurveScalar c;
+	s_comm buf;
+	buf.h   = prefix_hash;
+	buf.key = static_cast<const EllipticCurvePoint &>(pub);
+	if (ge_frombytes_vartime(&tmp3, &pub) != 0) {
+		if (key_corrupted)
+			*key_corrupted = true;
+		assert(false);
+		return false;
+	}
+	if (!sc_isvalid_vartime(&sig.c) || !sc_isvalid_vartime(&sig.r)) {
+		return false;
+	}
+	ge_double_scalarmult_base_vartime(&tmp2, &sig.c, &tmp3, &sig.r);
+	ge_tobytes(&buf.comm, &tmp2);
+	hash_to_scalar(&buf, sizeof(s_comm), c);
+	sc_sub(&c, &c, &sig.c);
+	return sc_iszero(&c);
+}
 
-  static void hash_to_ec(const PublicKey &key, ge_p3 &res) {
-    Hash h;
+static void hash_to_ec(const PublicKey &key, ge_p3 &res) {
+	ge_p2 point;
+	ge_p1p1 point2;
+	Hash h = cn_fast_hash(&key, sizeof(PublicKey));
+	ge_fromfe_frombytes_vartime(&point, h.data);
+	ge_mul8(&point2, &point);
+	ge_p1p1_to_p3(&res, &point2);
+}
+void hash_to_point_for_tests(const Hash &h, EllipticCurvePoint &res) {
+	ge_p2 point;
+	ge_fromfe_frombytes_vartime(&point, h.data);
+	ge_tobytes(&res, &point);
+}
+void hash_to_ec(const PublicKey &key, EllipticCurvePoint &res) {
+	ge_p3 tmp;
+	hash_to_ec(key, tmp);
+	ge_p3_tobytes(&res, &tmp);
+}
+/*void hash_data_to_ec(const uint8_t* data, std::size_t len, EllipticCurvePoint & key) {
     ge_p2 point;
     ge_p1p1 point2;
-    cn_fast_hash(std::addressof(key), sizeof(PublicKey), h);
-    ge_fromfe_frombytes_vartime(&point, reinterpret_cast<const unsigned char *>(&h));
-    ge_mul8(&point2, &point);
-    ge_p1p1_to_p3(&res, &point2);
-  }
-
-  void crypto_ops::hash_data_to_ec(const uint8_t* data, std::size_t len, PublicKey& key) {
-    Hash h;
-    ge_p2 point;
-    ge_p1p1 point2;
-    cn_fast_hash(data, len, h);
-    ge_fromfe_frombytes_vartime(&point, reinterpret_cast<const unsigned char *>(&h));
+    Hash h = cn_fast_hash(data, len);
+    ge_fromfe_frombytes_vartime(&point, h.data);
     ge_mul8(&point2, &point);
     ge_p1p1_to_p2(&point, &point2);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&key), &point);
-  }
-  
-  void crypto_ops::generate_key_image(const PublicKey &pub, const SecretKey &sec, KeyImage &image) {
-    ge_p3 point;
-    ge_p2 point2;
-    assert(sc_check(reinterpret_cast<const unsigned char*>(&sec)) == 0);
-    hash_to_ec(pub, point);
-    ge_scalarmult(&point2, reinterpret_cast<const unsigned char*>(&sec), &point);
-    ge_tobytes(reinterpret_cast<unsigned char*>(&image), &point2);
-  }
-  
-  void crypto_ops::generate_incomplete_key_image(const PublicKey &pub, EllipticCurvePoint &incomplete_key_image) {
-    ge_p3 point;
-    hash_to_ec(pub, point);
-    ge_p3_tobytes(reinterpret_cast<unsigned char*>(&incomplete_key_image), &point);
-  }
+    ge_tobytes(&key, &point);
+}*/
 
-#ifdef _MSC_VER
-#pragma warning(disable: 4200)
-#endif
+void generate_key_image(const PublicKey &pub, const SecretKey &sec, KeyImage &image) {
+	ge_p3 point;
+	ge_p2 point2;
+	assert(sc_isvalid_vartime(&sec));
+	hash_to_ec(pub, point);
+	ge_scalarmult(&point2, &sec, &point);
+	ge_tobytes(&image, &point2);
+}
 
-  struct rs_comm {
-    Hash h;
-    struct {
-      EllipticCurvePoint a, b;
-    } ab[];
-  };
+// void generate_incomplete_key_image(const PublicKey &pub, EllipticCurvePoint &incomplete_key_image) {
+//	ge_p3 point;
+//	hash_to_ec(pub, point);
+//	ge_p3_tobytes(&incomplete_key_image, &point);
+//}
 
-  static inline size_t rs_comm_size(size_t pubs_count) {
-    return sizeof(rs_comm) + pubs_count * sizeof(rs_comm().ab[0]);
-  }
+#pragma pack(push, 1)
+struct rs_comm {
+	Hash h;
+	struct {
+		EllipticCurvePoint a, b;
+	} ab[1];  // This structure is never instantiated, so instead of [0] we use standard-compliant [1]
+};
+#pragma pack(pop)
 
-  void crypto_ops::generate_ring_signature(const Hash &prefix_hash, const KeyImage &image,
-    const PublicKey *const *pubs, size_t pubs_count,
-    const SecretKey &sec, size_t sec_index,
-    Signature *sig) {
-    lock_guard<mutex> lock(random_lock);
-    size_t i;
-    ge_p3 image_unp;
-    ge_dsmp image_pre;
-    EllipticCurveScalar sum, k, h;
-    rs_comm *const buf = reinterpret_cast<rs_comm *>(alloca(rs_comm_size(pubs_count)));
-    assert(sec_index < pubs_count);
+static size_t rs_comm_size(size_t pubs_count) { return sizeof(Hash) + pubs_count * 2 * sizeof(EllipticCurvePoint); }
+
+bool generate_ring_signature(const Hash &prefix_hash, const KeyImage &image, const PublicKey *const pubs[],
+    size_t pubs_count, const SecretKey &sec, size_t sec_index, Signature sigs[]) {
+	if (sec_index >= pubs_count)
+		return false;
+	ge_p3 image_unp;
+	ge_dsmp image_pre;
+	EllipticCurveScalar sum, k, h;
+	const size_t buf_size = rs_comm_size(pubs_count);
+	rs_comm *const buf    = reinterpret_cast<rs_comm *>(alloca(buf_size));
 #if !defined(NDEBUG)
-    {
-      ge_p3 t;
-      PublicKey t2;
-      KeyImage t3;
-      assert(sc_check(reinterpret_cast<const unsigned char*>(&sec)) == 0);
-      ge_scalarmult_base(&t, reinterpret_cast<const unsigned char*>(&sec));
-      ge_p3_tobytes(reinterpret_cast<unsigned char*>(&t2), &t);
-      assert(*pubs[sec_index] == t2);
-      generate_key_image(*pubs[sec_index], sec, t3);
-      assert(image == t3);
-      for (i = 0; i < pubs_count; i++) {
-        assert(check_key(*pubs[i]));
-      }
-    }
+	{
+		ge_p3 t;
+		PublicKey t2;
+		KeyImage t3;
+		assert(sc_isvalid_vartime(&sec));
+		ge_scalarmult_base(&t, &sec);
+		ge_p3_tobytes(&t2, &t);
+		assert(*pubs[sec_index] == t2);
+		generate_key_image(*pubs[sec_index], sec, t3);
+		assert(image == t3);
+	}
 #endif
-    if (ge_frombytes_vartime(&image_unp, reinterpret_cast<const unsigned char*>(&image)) != 0) {
-      abort();
-    }
-    ge_dsm_precomp(image_pre, &image_unp);
-    sc_0(reinterpret_cast<unsigned char*>(&sum));
-    buf->h = prefix_hash;
-    for (i = 0; i < pubs_count; i++) {
-      ge_p2 tmp2;
-      ge_p3 tmp3;
-      if (i == sec_index) {
-        random_scalar(k);
-        ge_scalarmult_base(&tmp3, reinterpret_cast<unsigned char*>(&k));
-        ge_p3_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].a), &tmp3);
-        hash_to_ec(*pubs[i], tmp3);
-        ge_scalarmult(&tmp2, reinterpret_cast<unsigned char*>(&k), &tmp3);
-        ge_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].b), &tmp2);
-      } else {
-        random_scalar(reinterpret_cast<EllipticCurveScalar&>(sig[i]));
-        random_scalar(*reinterpret_cast<EllipticCurveScalar*>(reinterpret_cast<unsigned char*>(&sig[i]) + 32));
-        if (ge_frombytes_vartime(&tmp3, reinterpret_cast<const unsigned char*>(&*pubs[i])) != 0) {
-          abort();
-        }
-        ge_double_scalarmult_base_vartime(&tmp2, reinterpret_cast<unsigned char*>(&sig[i]), &tmp3, reinterpret_cast<unsigned char*>(&sig[i]) + 32);
-        ge_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].a), &tmp2);
-        hash_to_ec(*pubs[i], tmp3);
-        ge_double_scalarmult_precomp_vartime(&tmp2, reinterpret_cast<unsigned char*>(&sig[i]) + 32, &tmp3, reinterpret_cast<unsigned char*>(&sig[i]), image_pre);
-        ge_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].b), &tmp2);
-        sc_add(reinterpret_cast<unsigned char*>(&sum), reinterpret_cast<unsigned char*>(&sum), reinterpret_cast<unsigned char*>(&sig[i]));
-      }
-    }
-    hash_to_scalar(buf, rs_comm_size(pubs_count), h);
-    sc_sub(reinterpret_cast<unsigned char*>(&sig[sec_index]), reinterpret_cast<unsigned char*>(&h), reinterpret_cast<unsigned char*>(&sum));
-    sc_mulsub(reinterpret_cast<unsigned char*>(&sig[sec_index]) + 32, reinterpret_cast<unsigned char*>(&sig[sec_index]), reinterpret_cast<const unsigned char*>(&sec), reinterpret_cast<unsigned char*>(&k));
-  }
+	if (ge_frombytes_vartime(&image_unp, &image) != 0) {
+		return false;
+	}
+	ge_dsm_precomp(image_pre, &image_unp);
+	sc_0(&sum);
+	buf->h = prefix_hash;
+	for (size_t i = 0; i < pubs_count; i++) {
+		ge_p2 tmp2;
+		ge_p3 tmp3;
+		if (i == sec_index) {
+			random_scalar(k);
+			ge_scalarmult_base(&tmp3, &k);
+			ge_p3_tobytes(&buf->ab[i].a, &tmp3);
+			hash_to_ec(*pubs[i], tmp3);
+			ge_scalarmult(&tmp2, &k, &tmp3);
+			ge_tobytes(&buf->ab[i].b, &tmp2);
+		} else {
+			random_scalar(sigs[i].c);
+			random_scalar(sigs[i].r);
+			if (ge_frombytes_vartime(&tmp3, pubs[i]) != 0) {
+				assert(false);
+				return false;
+			}
+			ge_double_scalarmult_base_vartime(&tmp2, &sigs[i].c, &tmp3, &sigs[i].r);
+			ge_tobytes(&buf->ab[i].a, &tmp2);
+			hash_to_ec(*pubs[i], tmp3);
+			ge_double_scalarmult_precomp_vartime(&tmp2, &sigs[i].r, &tmp3, &sigs[i].c, image_pre);
+			ge_tobytes(&buf->ab[i].b, &tmp2);
+			sc_add(&sum, &sum, &sigs[i].c);
+		}
+	}
+	hash_to_scalar(buf, buf_size, h);
+	sc_sub(&sigs[sec_index].c, &h, &sum);
+	sc_mulsub(&sigs[sec_index].r, &sigs[sec_index].c, &sec, &k);
+	return true;
+}
 
-  bool crypto_ops::check_ring_signature(const Hash &prefix_hash, const KeyImage &image,
-    const PublicKey *const *pubs, size_t pubs_count,
-    const Signature *sig) {
-    size_t i;
-    ge_p3 image_unp;
-    ge_dsmp image_pre;
-    EllipticCurveScalar sum, h;
-    rs_comm *const buf = reinterpret_cast<rs_comm *>(alloca(rs_comm_size(pubs_count)));
-#if !defined(NDEBUG)
-    for (i = 0; i < pubs_count; i++) {
-      assert(check_key(*pubs[i]));
-    }
-#endif
-    if (ge_frombytes_vartime(&image_unp, reinterpret_cast<const unsigned char*>(&image)) != 0) {
-      return false;
-    }
-    ge_dsm_precomp(image_pre, &image_unp);
-    sc_0(reinterpret_cast<unsigned char*>(&sum));
-    buf->h = prefix_hash;
-    for (i = 0; i < pubs_count; i++) {
-      ge_p2 tmp2;
-      ge_p3 tmp3;
-      if (sc_check(reinterpret_cast<const unsigned char*>(&sig[i])) != 0 || sc_check(reinterpret_cast<const unsigned char*>(&sig[i]) + 32) != 0) {
-        return false;
-      }
-      if (ge_frombytes_vartime(&tmp3, reinterpret_cast<const unsigned char*>(&*pubs[i])) != 0) {
-        abort();
-      }
-      ge_double_scalarmult_base_vartime(&tmp2, reinterpret_cast<const unsigned char*>(&sig[i]), &tmp3, reinterpret_cast<const unsigned char*>(&sig[i]) + 32);
-      ge_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].a), &tmp2);
-      hash_to_ec(*pubs[i], tmp3);
-      ge_double_scalarmult_precomp_vartime(&tmp2, reinterpret_cast<const unsigned char*>(&sig[i]) + 32, &tmp3, reinterpret_cast<const unsigned char*>(&sig[i]), image_pre);
-      ge_tobytes(reinterpret_cast<unsigned char*>(&buf->ab[i].b), &tmp2);
-      sc_add(reinterpret_cast<unsigned char*>(&sum), reinterpret_cast<unsigned char*>(&sum), reinterpret_cast<const unsigned char*>(&sig[i]));
-    }
-    hash_to_scalar(buf, rs_comm_size(pubs_count), h);
-    sc_sub(reinterpret_cast<unsigned char*>(&h), reinterpret_cast<unsigned char*>(&h), reinterpret_cast<unsigned char*>(&sum));
-    return sc_isnonzero(reinterpret_cast<unsigned char*>(&h)) == 0;
-  }
+bool check_ring_signature(const Hash &prefix_hash, const KeyImage &image, const PublicKey *const pubs[],
+    size_t pubs_count, const Signature sigs[], bool check_key_image, bool *key_corrupted) {
+	if (key_corrupted)
+		*key_corrupted = false;
+	ge_p3 image_unp;
+	ge_dsmp image_pre;
+	EllipticCurveScalar sum, h;
+	const size_t buf_size = rs_comm_size(pubs_count);
+	rs_comm *const buf    = reinterpret_cast<rs_comm *>(alloca(buf_size));
+	if (ge_frombytes_vartime(&image_unp, &image) != 0) {
+		return false;
+	}
+	ge_dsm_precomp(image_pre, &image_unp);
+	if (check_key_image && ge_check_subgroup_precomp_vartime(image_pre) != 0) {
+		return false;
+	}
+	sc_0(&sum);
+	buf->h = prefix_hash;
+	for (size_t i = 0; i < pubs_count; i++) {
+		ge_p2 tmp2;
+		ge_p3 tmp3;
+		if (!sc_isvalid_vartime(&sigs[i].c) || !sc_isvalid_vartime(&sigs[i].r)) {
+			return false;
+		}
+		if (ge_frombytes_vartime(&tmp3, pubs[i]) != 0) {
+			if (key_corrupted)
+				*key_corrupted = true;
+			assert(false);
+			return false;
+		}
+		ge_double_scalarmult_base_vartime(&tmp2, &sigs[i].c, &tmp3, &sigs[i].r);
+		ge_tobytes(&buf->ab[i].a, &tmp2);
+		hash_to_ec(*pubs[i], tmp3);
+		ge_double_scalarmult_precomp_vartime(&tmp2, &sigs[i].r, &tmp3, &sigs[i].c, image_pre);
+		ge_tobytes(&buf->ab[i].b, &tmp2);
+		sc_add(&sum, &sum, &sigs[i].c);
+	}
+	hash_to_scalar(buf, buf_size, h);
+	sc_sub(&h, &h, &sum);
+	return sc_iszero(&h);
+}
+
+#pragma pack(push, 1)
+struct sp_comm {
+	Hash message_hash;
+	PublicKey txkey, receiver_view_key;
+	KeyDerivation derivation;
+	EllipticCurvePoint a, b;
+};
+#pragma pack(pop)
+static_assert(sizeof(sp_comm) == 192, "Layout of sp_comm structure is wrong");
+
+bool generate_send_proof(const PublicKey &txkey_pub, const SecretKey &txkey_sec, const PublicKey &receiver_view_key_pub,
+    const KeyDerivation &derivation, const Hash &message_hash, Signature &proof) {
+	ge_p1p1 tmp1;
+	ge_p2 tmp2;
+	ge_p3 tmp3;
+	EllipticCurveScalar k;
+	sp_comm comm;
+	if (ge_frombytes_vartime(&tmp3, &receiver_view_key_pub) != 0) {
+		return false;
+	}
+	comm.message_hash      = message_hash;
+	comm.txkey             = txkey_pub;
+	comm.receiver_view_key = receiver_view_key_pub;
+	comm.derivation        = derivation;
+	random_scalar(k);
+	ge_scalarmult(&tmp2, &k, &tmp3);
+	ge_scalarmult_base(&tmp3, &k);
+	ge_p3_tobytes(&comm.a, &tmp3);
+	ge_mul8(&tmp1, &tmp2);
+	ge_p1p1_to_p2(&tmp2, &tmp1);
+	ge_tobytes(&comm.b, &tmp2);
+	hash_to_scalar(&comm, sizeof(sp_comm), proof.c);
+	sc_mulsub(&proof.r, &proof.c, &txkey_sec, &k);
+	return true;
+}
+
+bool check_send_proof(const PublicKey &txkey_pub, const PublicKey &receiver_view_key_pub,
+    const KeyDerivation &derivation, const Hash &message_hash, const Signature &proof) {
+	ge_p1p1 tmp1;
+	ge_p2 tmp2;
+	ge_p3 tmp3;
+	ge_dsmp dsmp;
+	EllipticCurveScalar h;
+	sp_comm comm;
+	if (!sc_isvalid_vartime(&proof.c) || !sc_isvalid_vartime(&proof.r)) {
+		return false;
+	}
+	comm.message_hash      = message_hash;
+	comm.txkey             = txkey_pub;
+	comm.receiver_view_key = receiver_view_key_pub;
+	comm.derivation        = derivation;
+	if (ge_frombytes_vartime(&tmp3, &txkey_pub) != 0) {
+		return false;
+	}
+	ge_double_scalarmult_base_vartime(&tmp2, &proof.c, &tmp3, &proof.r);
+	ge_tobytes(&comm.a, &tmp2);
+	if (ge_frombytes_vartime(&tmp3, &derivation) != 0) {
+		return false;
+	}
+	ge_dsm_precomp(dsmp, &tmp3);
+	if (ge_check_subgroup_precomp_vartime(dsmp) != 0) {
+		return false;
+	}
+	if (ge_frombytes_vartime(&tmp3, &receiver_view_key_pub) != 0) {
+		return false;
+	}
+	ge_p3_to_p2(&tmp2, &tmp3);
+	ge_mul8(&tmp1, &tmp2);
+	ge_p1p1_to_p3(&tmp3, &tmp1);
+	ge_double_scalarmult_precomp_vartime(&tmp2, &proof.r, &tmp3, &proof.c, dsmp);
+	ge_tobytes(&comm.b, &tmp2);
+	hash_to_scalar(&comm, sizeof(sp_comm), h);
+	sc_sub(&h, &h, &proof.c);
+	return sc_iszero(&h);
+}
 }

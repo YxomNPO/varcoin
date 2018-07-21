@@ -1,24 +1,12 @@
-// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
-//
-// This file is part of Varcoin.
-//
-// Varcoin is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Varcoin is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech.
+// Licensed under the GNU Lesser General Public License. See LICENSE for details.
 
 #include <assert.h>
 #include <stdint.h>
 
 #include "crypto-ops.h"
+#include "crypto-ops-data.h"
+#include "crypto-util.h"
 
 /* Predeclarations */
 
@@ -1178,7 +1166,9 @@ and b = b[0]+256*b[1]+...+256^31 b[31].
 B is the Ed25519 base point (x,4/5) with x positive.
 */
 
-void ge_double_scalarmult_base_vartime(ge_p2 *r, const unsigned char *a, const ge_p3 *A, const unsigned char *b) {
+void ge_double_scalarmult_base_vartime(ge_p2 *r, const struct EllipticCurveScalar *aa, const ge_p3 *A, const struct EllipticCurveScalar *bb) {
+	const unsigned char * a = aa->data;
+	const unsigned char * b = bb->data;
   signed char aslide[256];
   signed char bslide[256];
   ge_dsmp Ai; /* A, 3A, 5A, 7A, 9A, 11A, 13A, 15A */
@@ -1221,7 +1211,8 @@ void ge_double_scalarmult_base_vartime(ge_p2 *r, const unsigned char *a, const g
 
 /* From ge_frombytes.c, modified */
 
-int ge_frombytes_vartime(ge_p3 *h, const unsigned char *s) {
+int ge_frombytes_vartime(ge_p3 *h, const struct EllipticCurvePoint *ss) {
+	const unsigned char * s = ss->data;
   fe u;
   fe v;
   fe vxx;
@@ -1453,7 +1444,8 @@ void ge_p3_to_p2(ge_p2 *r, const ge_p3 *p) {
 
 /* From ge_p3_tobytes.c */
 
-void ge_p3_tobytes(unsigned char *s, const ge_p3 *h) {
+void ge_p3_tobytes(struct EllipticCurvePoint * ss, const ge_p3 *h) {
+	unsigned char * s = ss->data;
   fe recip;
   fe x;
   fe y;
@@ -1526,7 +1518,8 @@ Preconditions:
   a[31] <= 127
 */
 
-void ge_scalarmult_base(ge_p3 *h, const unsigned char *a) {
+void ge_scalarmult_base(ge_p3 *h, const struct EllipticCurveScalar *aa) {
+    const unsigned char * a = aa->data;
   signed char e[64];
   signed char carry;
   ge_p1p1 r;
@@ -1591,7 +1584,8 @@ void ge_sub(ge_p1p1 *r, const ge_p3 *p, const ge_cached *q) {
 
 /* From ge_tobytes.c */
 
-void ge_tobytes(unsigned char *s, const ge_p2 *h) {
+void ge_tobytes(struct EllipticCurvePoint *ss, const ge_p2 *h) {
+    unsigned char * s = ss->data;
   fe recip;
   fe x;
   fe y;
@@ -1614,8 +1608,7 @@ Output:
   where l = 2^252 + 27742317777372353535851937790883648493.
   Overwrites s in place.
 */
-
-void sc_reduce(unsigned char *s) {
+void sc_reduce(struct EllipticCurveScalar * aa, const unsigned char s[64]) {
   int64_t s0 = 2097151 & load_3(s);
   int64_t s1 = 2097151 & (load_4(s + 2) >> 5);
   int64_t s2 = 2097151 & (load_3(s + 5) >> 2);
@@ -1810,38 +1803,38 @@ void sc_reduce(unsigned char *s) {
   carry9 = s9 >> 21; s10 += carry9; s9 -= carry9 << 21;
   carry10 = s10 >> 21; s11 += carry10; s10 -= carry10 << 21;
 
-  s[0] = (unsigned char) (s0 >> 0);
-  s[1] = (unsigned char) (s0 >> 8);
-  s[2] = (unsigned char) ((s0 >> 16) | (s1 << 5));
-  s[3] = (unsigned char) (s1 >> 3);
-  s[4] = (unsigned char) (s1 >> 11);
-  s[5] = (unsigned char) ((s1 >> 19) | (s2 << 2));
-  s[6] = (unsigned char) (s2 >> 6);
-  s[7] = (unsigned char) ((s2 >> 14) | (s3 << 7));
-  s[8] = (unsigned char) (s3 >> 1);
-  s[9] = (unsigned char) (s3 >> 9);
-  s[10] = (unsigned char) ((s3 >> 17) | (s4 << 4));
-  s[11] = (unsigned char) (s4 >> 4);
-  s[12] = (unsigned char) (s4 >> 12);
-  s[13] = (unsigned char) ((s4 >> 20) | (s5 << 1));
-  s[14] = (unsigned char) (s5 >> 7);
-  s[15] = (unsigned char) ((s5 >> 15) | (s6 << 6));
-  s[16] = (unsigned char) (s6 >> 2);
-  s[17] = (unsigned char) (s6 >> 10);
-  s[18] = (unsigned char) ((s6 >> 18) | (s7 << 3));
-  s[19] = (unsigned char) (s7 >> 5);
-  s[20] = (unsigned char) (s7 >> 13);
-  s[21] = (unsigned char) (s8 >> 0);
-  s[22] = (unsigned char) (s8 >> 8);
-  s[23] = (unsigned char) ((s8 >> 16) | (s9 << 5));
-  s[24] = (unsigned char) (s9 >> 3);
-  s[25] = (unsigned char) (s9 >> 11);
-  s[26] = (unsigned char) ((s9 >> 19) | (s10 << 2));
-  s[27] = (unsigned char) (s10 >> 6);
-  s[28] = (unsigned char) ((s10 >> 14) | (s11 << 7));
-  s[29] = (unsigned char) (s11 >> 1);
-  s[30] = (unsigned char) (s11 >> 9);
-  s[31] = (unsigned char) (s11 >> 17);
+  aa->data[0] = (unsigned char) (s0 >> 0);
+  aa->data[1] = (unsigned char) (s0 >> 8);
+  aa->data[2] = (unsigned char) ((s0 >> 16) | (s1 << 5));
+  aa->data[3] = (unsigned char) (s1 >> 3);
+  aa->data[4] = (unsigned char) (s1 >> 11);
+  aa->data[5] = (unsigned char) ((s1 >> 19) | (s2 << 2));
+  aa->data[6] = (unsigned char) (s2 >> 6);
+  aa->data[7] = (unsigned char) ((s2 >> 14) | (s3 << 7));
+  aa->data[8] = (unsigned char) (s3 >> 1);
+  aa->data[9] = (unsigned char) (s3 >> 9);
+  aa->data[10] = (unsigned char) ((s3 >> 17) | (s4 << 4));
+  aa->data[11] = (unsigned char) (s4 >> 4);
+  aa->data[12] = (unsigned char) (s4 >> 12);
+  aa->data[13] = (unsigned char) ((s4 >> 20) | (s5 << 1));
+  aa->data[14] = (unsigned char) (s5 >> 7);
+  aa->data[15] = (unsigned char) ((s5 >> 15) | (s6 << 6));
+  aa->data[16] = (unsigned char) (s6 >> 2);
+  aa->data[17] = (unsigned char) (s6 >> 10);
+  aa->data[18] = (unsigned char) ((s6 >> 18) | (s7 << 3));
+  aa->data[19] = (unsigned char) (s7 >> 5);
+  aa->data[20] = (unsigned char) (s7 >> 13);
+  aa->data[21] = (unsigned char) (s8 >> 0);
+  aa->data[22] = (unsigned char) (s8 >> 8);
+  aa->data[23] = (unsigned char) ((s8 >> 16) | (s9 << 5));
+  aa->data[24] = (unsigned char) (s9 >> 3);
+  aa->data[25] = (unsigned char) (s9 >> 11);
+  aa->data[26] = (unsigned char) ((s9 >> 19) | (s10 << 2));
+  aa->data[27] = (unsigned char) (s10 >> 6);
+  aa->data[28] = (unsigned char) ((s10 >> 14) | (s11 << 7));
+  aa->data[29] = (unsigned char) (s11 >> 1);
+  aa->data[30] = (unsigned char) (s11 >> 9);
+  aa->data[31] = (unsigned char) (s11 >> 17);
 }
 
 /* New code */
@@ -1925,7 +1918,7 @@ static void ge_cached_cmov(ge_cached *t, const ge_cached *u, unsigned char b) {
 }
 
 /* Assumes that a[31] <= 127 */
-void ge_scalarmult(ge_p2 *r, const unsigned char *a, const ge_p3 *A) {
+void ge_scalarmult(ge_p2 *r, const struct EllipticCurveScalar *a, const ge_p3 *A) {
   signed char e[64];
   int carry, carry2, i;
   ge_cached Ai[8]; /* 1 * A, 2 * A, ..., 8 * A */
@@ -1934,13 +1927,13 @@ void ge_scalarmult(ge_p2 *r, const unsigned char *a, const ge_p3 *A) {
 
   carry = 0; /* 0..1 */
   for (i = 0; i < 31; i++) {
-    carry += a[i]; /* 0..256 */
+    carry += a->data[i]; /* 0..256 */
     carry2 = (carry + 8) >> 4; /* 0..16 */
     e[2 * i] = carry - (carry2 << 4); /* -8..7 */
     carry = (carry2 + 8) >> 4; /* 0..1 */
     e[2 * i + 1] = carry2 - (carry << 4); /* -8..7 */
   }
-  carry += a[31]; /* 0..128 */
+  carry += a->data[31]; /* 0..128 */
   carry2 = (carry + 8) >> 4; /* 0..8 */
   e[62] = carry - (carry2 << 4); /* -8..7 */
   e[63] = carry2; /* 0..8 */
@@ -1985,7 +1978,9 @@ void ge_scalarmult(ge_p2 *r, const unsigned char *a, const ge_p3 *A) {
   }
 }
 
-void ge_double_scalarmult_precomp_vartime(ge_p2 *r, const unsigned char *a, const ge_p3 *A, const unsigned char *b, const ge_dsmp Bi) {
+void ge_double_scalarmult_precomp_vartime(ge_p2 *r, const struct EllipticCurveScalar *aa, const ge_p3 *A, const struct EllipticCurveScalar *bb, const ge_dsmp Bi) {
+	const unsigned char * a = aa->data;
+	const unsigned char * b = bb->data;
   signed char aslide[256];
   signed char bslide[256];
   ge_dsmp Ai; /* A, 3A, 5A, 7A, 9A, 11A, 13A, 15A */
@@ -2026,6 +2021,558 @@ void ge_double_scalarmult_precomp_vartime(ge_p2 *r, const unsigned char *a, cons
   }
 }
 
+int ge_check_subgroup_precomp_vartime(const ge_dsmp p) {
+  ge_p3 s;
+  ge_p1p1 t;
+  ge_p2 u;
+  ge_p3_0(&s);
+  ge_add(&t, &s, p + 7);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 2);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 3);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p + 1);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p + 5);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 1);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p + 1);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p + 6);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 5);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 5);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 4);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 1);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 1);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 6);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p + 1);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p + 1);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p + 2);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p + 5);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_sub(&t, &s, p + 2);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p2(&u, &t);
+  ge_p2_dbl(&t, &u);
+  ge_p1p1_to_p3(&s, &t);
+  ge_add(&t, &s, p);
+  fe_sub(t.Y, t.Y, t.T);
+  return fe_isnonzero(t.Y);
+}
+
 void ge_mul8(ge_p1p1 *r, const ge_p2 *t) {
   ge_p2 u;
   ge_p2_dbl(r, t);
@@ -2035,7 +2582,7 @@ void ge_mul8(ge_p1p1 *r, const ge_p2 *t) {
   ge_p2_dbl(r, &u);
 }
 
-void ge_fromfe_frombytes_vartime(ge_p2 *r, const unsigned char *s) {
+void ge_fromfe_frombytes_vartime(ge_p2 *r, const unsigned char s[32]) {
   fe u, v, w, x, y, z;
   unsigned char sign;
 
@@ -2151,14 +2698,15 @@ setsign:
 #endif
 }
 
-void sc_0(unsigned char *s) {
+void sc_0(struct EllipticCurveScalar *s) {
   int i;
   for (i = 0; i < 32; i++) {
-    s[i] = 0;
+    s->data[i] = 0;
   }
 }
 
-void sc_reduce32(unsigned char *s) {
+void sc_reduce32(struct EllipticCurveScalar * aa, const unsigned char s[32]) {
+	unsigned char * a = aa->data;
   int64_t s0 = 2097151 & load_3(s);
   int64_t s1 = 2097151 & (load_4(s + 2) >> 5);
   int64_t s2 = 2097151 & (load_3(s + 5) >> 2);
@@ -2239,65 +2787,65 @@ void sc_reduce32(unsigned char *s) {
   carry9 = s9 >> 21; s10 += carry9; s9 -= carry9 << 21;
   carry10 = s10 >> 21; s11 += carry10; s10 -= carry10 << 21;
 
-  s[0] = (unsigned char) (s0 >> 0);
-  s[1] = (unsigned char) (s0 >> 8);
-  s[2] = (unsigned char) ((s0 >> 16) | (s1 << 5));
-  s[3] = (unsigned char) (s1 >> 3);
-  s[4] = (unsigned char) (s1 >> 11);
-  s[5] = (unsigned char) ((s1 >> 19) | (s2 << 2));
-  s[6] = (unsigned char) (s2 >> 6);
-  s[7] = (unsigned char) ((s2 >> 14) | (s3 << 7));
-  s[8] = (unsigned char) (s3 >> 1);
-  s[9] = (unsigned char) (s3 >> 9);
-  s[10] = (unsigned char) ((s3 >> 17) | (s4 << 4));
-  s[11] = (unsigned char) (s4 >> 4);
-  s[12] = (unsigned char) (s4 >> 12);
-  s[13] = (unsigned char) ((s4 >> 20) | (s5 << 1));
-  s[14] = (unsigned char) (s5 >> 7);
-  s[15] = (unsigned char) ((s5 >> 15) | (s6 << 6));
-  s[16] = (unsigned char) (s6 >> 2);
-  s[17] = (unsigned char) (s6 >> 10);
-  s[18] = (unsigned char) ((s6 >> 18) | (s7 << 3));
-  s[19] = (unsigned char) (s7 >> 5);
-  s[20] = (unsigned char) (s7 >> 13);
-  s[21] = (unsigned char) (s8 >> 0);
-  s[22] = (unsigned char) (s8 >> 8);
-  s[23] = (unsigned char) ((s8 >> 16) | (s9 << 5));
-  s[24] = (unsigned char) (s9 >> 3);
-  s[25] = (unsigned char) (s9 >> 11);
-  s[26] = (unsigned char) ((s9 >> 19) | (s10 << 2));
-  s[27] = (unsigned char) (s10 >> 6);
-  s[28] = (unsigned char) ((s10 >> 14) | (s11 << 7));
-  s[29] = (unsigned char) (s11 >> 1);
-  s[30] = (unsigned char) (s11 >> 9);
-  s[31] = (unsigned char) (s11 >> 17);
+  a[0] = (unsigned char) (s0 >> 0);
+  a[1] = (unsigned char) (s0 >> 8);
+  a[2] = (unsigned char) ((s0 >> 16) | (s1 << 5));
+  a[3] = (unsigned char) (s1 >> 3);
+  a[4] = (unsigned char) (s1 >> 11);
+  a[5] = (unsigned char) ((s1 >> 19) | (s2 << 2));
+  a[6] = (unsigned char) (s2 >> 6);
+  a[7] = (unsigned char) ((s2 >> 14) | (s3 << 7));
+  a[8] = (unsigned char) (s3 >> 1);
+  a[9] = (unsigned char) (s3 >> 9);
+  a[10] = (unsigned char) ((s3 >> 17) | (s4 << 4));
+  a[11] = (unsigned char) (s4 >> 4);
+  a[12] = (unsigned char) (s4 >> 12);
+  a[13] = (unsigned char) ((s4 >> 20) | (s5 << 1));
+  a[14] = (unsigned char) (s5 >> 7);
+  a[15] = (unsigned char) ((s5 >> 15) | (s6 << 6));
+  a[16] = (unsigned char) (s6 >> 2);
+  a[17] = (unsigned char) (s6 >> 10);
+  a[18] = (unsigned char) ((s6 >> 18) | (s7 << 3));
+  a[19] = (unsigned char) (s7 >> 5);
+  a[20] = (unsigned char) (s7 >> 13);
+  a[21] = (unsigned char) (s8 >> 0);
+  a[22] = (unsigned char) (s8 >> 8);
+  a[23] = (unsigned char) ((s8 >> 16) | (s9 << 5));
+  a[24] = (unsigned char) (s9 >> 3);
+  a[25] = (unsigned char) (s9 >> 11);
+  a[26] = (unsigned char) ((s9 >> 19) | (s10 << 2));
+  a[27] = (unsigned char) (s10 >> 6);
+  a[28] = (unsigned char) ((s10 >> 14) | (s11 << 7));
+  a[29] = (unsigned char) (s11 >> 1);
+  a[30] = (unsigned char) (s11 >> 9);
+  a[31] = (unsigned char) (s11 >> 17);
 }
 
-void sc_add(unsigned char *s, const unsigned char *a, const unsigned char *b) {
-  int64_t a0 = 2097151 & load_3(a);
-  int64_t a1 = 2097151 & (load_4(a + 2) >> 5);
-  int64_t a2 = 2097151 & (load_3(a + 5) >> 2);
-  int64_t a3 = 2097151 & (load_4(a + 7) >> 7);
-  int64_t a4 = 2097151 & (load_4(a + 10) >> 4);
-  int64_t a5 = 2097151 & (load_3(a + 13) >> 1);
-  int64_t a6 = 2097151 & (load_4(a + 15) >> 6);
-  int64_t a7 = 2097151 & (load_3(a + 18) >> 3);
-  int64_t a8 = 2097151 & load_3(a + 21);
-  int64_t a9 = 2097151 & (load_4(a + 23) >> 5);
-  int64_t a10 = 2097151 & (load_3(a + 26) >> 2);
-  int64_t a11 = (load_4(a + 28) >> 7);
-  int64_t b0 = 2097151 & load_3(b);
-  int64_t b1 = 2097151 & (load_4(b + 2) >> 5);
-  int64_t b2 = 2097151 & (load_3(b + 5) >> 2);
-  int64_t b3 = 2097151 & (load_4(b + 7) >> 7);
-  int64_t b4 = 2097151 & (load_4(b + 10) >> 4);
-  int64_t b5 = 2097151 & (load_3(b + 13) >> 1);
-  int64_t b6 = 2097151 & (load_4(b + 15) >> 6);
-  int64_t b7 = 2097151 & (load_3(b + 18) >> 3);
-  int64_t b8 = 2097151 & load_3(b + 21);
-  int64_t b9 = 2097151 & (load_4(b + 23) >> 5);
-  int64_t b10 = 2097151 & (load_3(b + 26) >> 2);
-  int64_t b11 = (load_4(b + 28) >> 7);
+void sc_add(struct EllipticCurveScalar *s, const struct EllipticCurveScalar *a, const struct EllipticCurveScalar *b) {
+  int64_t a0 = 2097151 & load_3(a->data);
+  int64_t a1 = 2097151 & (load_4(a->data + 2) >> 5);
+  int64_t a2 = 2097151 & (load_3(a->data + 5) >> 2);
+  int64_t a3 = 2097151 & (load_4(a->data + 7) >> 7);
+  int64_t a4 = 2097151 & (load_4(a->data + 10) >> 4);
+  int64_t a5 = 2097151 & (load_3(a->data + 13) >> 1);
+  int64_t a6 = 2097151 & (load_4(a->data + 15) >> 6);
+  int64_t a7 = 2097151 & (load_3(a->data + 18) >> 3);
+  int64_t a8 = 2097151 & load_3(a->data + 21);
+  int64_t a9 = 2097151 & (load_4(a->data + 23) >> 5);
+  int64_t a10 = 2097151 & (load_3(a->data + 26) >> 2);
+  int64_t a11 = (load_4(a->data + 28) >> 7);
+  int64_t b0 = 2097151 & load_3(b->data);
+  int64_t b1 = 2097151 & (load_4(b->data + 2) >> 5);
+  int64_t b2 = 2097151 & (load_3(b->data + 5) >> 2);
+  int64_t b3 = 2097151 & (load_4(b->data + 7) >> 7);
+  int64_t b4 = 2097151 & (load_4(b->data + 10) >> 4);
+  int64_t b5 = 2097151 & (load_3(b->data + 13) >> 1);
+  int64_t b6 = 2097151 & (load_4(b->data + 15) >> 6);
+  int64_t b7 = 2097151 & (load_3(b->data + 18) >> 3);
+  int64_t b8 = 2097151 & load_3(b->data + 21);
+  int64_t b9 = 2097151 & (load_4(b->data + 23) >> 5);
+  int64_t b10 = 2097151 & (load_3(b->data + 26) >> 2);
+  int64_t b11 = (load_4(b->data + 28) >> 7);
   int64_t s0 = a0 + b0;
   int64_t s1 = a1 + b1;
   int64_t s2 = a2 + b2;
@@ -2378,65 +2926,65 @@ void sc_add(unsigned char *s, const unsigned char *a, const unsigned char *b) {
   carry9 = s9 >> 21; s10 += carry9; s9 -= carry9 << 21;
   carry10 = s10 >> 21; s11 += carry10; s10 -= carry10 << 21;
 
-  s[0] = (unsigned char) (s0 >> 0);
-  s[1] = (unsigned char) (s0 >> 8);
-  s[2] = (unsigned char) ((s0 >> 16) | (s1 << 5));
-  s[3] = (unsigned char) (s1 >> 3);
-  s[4] = (unsigned char) (s1 >> 11);
-  s[5] = (unsigned char) ((s1 >> 19) | (s2 << 2));
-  s[6] = (unsigned char) (s2 >> 6);
-  s[7] = (unsigned char) ((s2 >> 14) | (s3 << 7));
-  s[8] = (unsigned char) (s3 >> 1);
-  s[9] = (unsigned char) (s3 >> 9);
-  s[10] = (unsigned char) ((s3 >> 17) | (s4 << 4));
-  s[11] = (unsigned char) (s4 >> 4);
-  s[12] = (unsigned char) (s4 >> 12);
-  s[13] = (unsigned char) ((s4 >> 20) | (s5 << 1));
-  s[14] = (unsigned char) (s5 >> 7);
-  s[15] = (unsigned char) ((s5 >> 15) | (s6 << 6));
-  s[16] = (unsigned char) (s6 >> 2);
-  s[17] = (unsigned char) (s6 >> 10);
-  s[18] = (unsigned char) ((s6 >> 18) | (s7 << 3));
-  s[19] = (unsigned char) (s7 >> 5);
-  s[20] = (unsigned char) (s7 >> 13);
-  s[21] = (unsigned char) (s8 >> 0);
-  s[22] = (unsigned char) (s8 >> 8);
-  s[23] = (unsigned char) ((s8 >> 16) | (s9 << 5));
-  s[24] = (unsigned char) (s9 >> 3);
-  s[25] = (unsigned char) (s9 >> 11);
-  s[26] = (unsigned char) ((s9 >> 19) | (s10 << 2));
-  s[27] = (unsigned char) (s10 >> 6);
-  s[28] = (unsigned char) ((s10 >> 14) | (s11 << 7));
-  s[29] = (unsigned char) (s11 >> 1);
-  s[30] = (unsigned char) (s11 >> 9);
-  s[31] = (unsigned char) (s11 >> 17);
+  s->data[0] = (unsigned char) (s0 >> 0);
+  s->data[1] = (unsigned char) (s0 >> 8);
+  s->data[2] = (unsigned char) ((s0 >> 16) | (s1 << 5));
+  s->data[3] = (unsigned char) (s1 >> 3);
+  s->data[4] = (unsigned char) (s1 >> 11);
+  s->data[5] = (unsigned char) ((s1 >> 19) | (s2 << 2));
+  s->data[6] = (unsigned char) (s2 >> 6);
+  s->data[7] = (unsigned char) ((s2 >> 14) | (s3 << 7));
+  s->data[8] = (unsigned char) (s3 >> 1);
+  s->data[9] = (unsigned char) (s3 >> 9);
+  s->data[10] = (unsigned char) ((s3 >> 17) | (s4 << 4));
+  s->data[11] = (unsigned char) (s4 >> 4);
+  s->data[12] = (unsigned char) (s4 >> 12);
+  s->data[13] = (unsigned char) ((s4 >> 20) | (s5 << 1));
+  s->data[14] = (unsigned char) (s5 >> 7);
+  s->data[15] = (unsigned char) ((s5 >> 15) | (s6 << 6));
+  s->data[16] = (unsigned char) (s6 >> 2);
+  s->data[17] = (unsigned char) (s6 >> 10);
+  s->data[18] = (unsigned char) ((s6 >> 18) | (s7 << 3));
+  s->data[19] = (unsigned char) (s7 >> 5);
+  s->data[20] = (unsigned char) (s7 >> 13);
+  s->data[21] = (unsigned char) (s8 >> 0);
+  s->data[22] = (unsigned char) (s8 >> 8);
+  s->data[23] = (unsigned char) ((s8 >> 16) | (s9 << 5));
+  s->data[24] = (unsigned char) (s9 >> 3);
+  s->data[25] = (unsigned char) (s9 >> 11);
+  s->data[26] = (unsigned char) ((s9 >> 19) | (s10 << 2));
+  s->data[27] = (unsigned char) (s10 >> 6);
+  s->data[28] = (unsigned char) ((s10 >> 14) | (s11 << 7));
+  s->data[29] = (unsigned char) (s11 >> 1);
+  s->data[30] = (unsigned char) (s11 >> 9);
+  s->data[31] = (unsigned char) (s11 >> 17);
 }
 
-void sc_sub(unsigned char *s, const unsigned char *a, const unsigned char *b) {
-  int64_t a0 = 2097151 & load_3(a);
-  int64_t a1 = 2097151 & (load_4(a + 2) >> 5);
-  int64_t a2 = 2097151 & (load_3(a + 5) >> 2);
-  int64_t a3 = 2097151 & (load_4(a + 7) >> 7);
-  int64_t a4 = 2097151 & (load_4(a + 10) >> 4);
-  int64_t a5 = 2097151 & (load_3(a + 13) >> 1);
-  int64_t a6 = 2097151 & (load_4(a + 15) >> 6);
-  int64_t a7 = 2097151 & (load_3(a + 18) >> 3);
-  int64_t a8 = 2097151 & load_3(a + 21);
-  int64_t a9 = 2097151 & (load_4(a + 23) >> 5);
-  int64_t a10 = 2097151 & (load_3(a + 26) >> 2);
-  int64_t a11 = (load_4(a + 28) >> 7);
-  int64_t b0 = 2097151 & load_3(b);
-  int64_t b1 = 2097151 & (load_4(b + 2) >> 5);
-  int64_t b2 = 2097151 & (load_3(b + 5) >> 2);
-  int64_t b3 = 2097151 & (load_4(b + 7) >> 7);
-  int64_t b4 = 2097151 & (load_4(b + 10) >> 4);
-  int64_t b5 = 2097151 & (load_3(b + 13) >> 1);
-  int64_t b6 = 2097151 & (load_4(b + 15) >> 6);
-  int64_t b7 = 2097151 & (load_3(b + 18) >> 3);
-  int64_t b8 = 2097151 & load_3(b + 21);
-  int64_t b9 = 2097151 & (load_4(b + 23) >> 5);
-  int64_t b10 = 2097151 & (load_3(b + 26) >> 2);
-  int64_t b11 = (load_4(b + 28) >> 7);
+void sc_sub(struct EllipticCurveScalar *s, const struct EllipticCurveScalar *a, const struct EllipticCurveScalar *b) {
+  int64_t a0 = 2097151 & load_3(a->data);
+  int64_t a1 = 2097151 & (load_4(a->data + 2) >> 5);
+  int64_t a2 = 2097151 & (load_3(a->data + 5) >> 2);
+  int64_t a3 = 2097151 & (load_4(a->data + 7) >> 7);
+  int64_t a4 = 2097151 & (load_4(a->data + 10) >> 4);
+  int64_t a5 = 2097151 & (load_3(a->data + 13) >> 1);
+  int64_t a6 = 2097151 & (load_4(a->data + 15) >> 6);
+  int64_t a7 = 2097151 & (load_3(a->data + 18) >> 3);
+  int64_t a8 = 2097151 & load_3(a->data + 21);
+  int64_t a9 = 2097151 & (load_4(a->data + 23) >> 5);
+  int64_t a10 = 2097151 & (load_3(a->data + 26) >> 2);
+  int64_t a11 = (load_4(a->data + 28) >> 7);
+  int64_t b0 = 2097151 & load_3(b->data);
+  int64_t b1 = 2097151 & (load_4(b->data + 2) >> 5);
+  int64_t b2 = 2097151 & (load_3(b->data + 5) >> 2);
+  int64_t b3 = 2097151 & (load_4(b->data + 7) >> 7);
+  int64_t b4 = 2097151 & (load_4(b->data + 10) >> 4);
+  int64_t b5 = 2097151 & (load_3(b->data + 13) >> 1);
+  int64_t b6 = 2097151 & (load_4(b->data + 15) >> 6);
+  int64_t b7 = 2097151 & (load_3(b->data + 18) >> 3);
+  int64_t b8 = 2097151 & load_3(b->data + 21);
+  int64_t b9 = 2097151 & (load_4(b->data + 23) >> 5);
+  int64_t b10 = 2097151 & (load_3(b->data + 26) >> 2);
+  int64_t b11 = (load_4(b->data + 28) >> 7);
   int64_t s0 = a0 - b0;
   int64_t s1 = a1 - b1;
   int64_t s2 = a2 - b2;
@@ -2517,38 +3065,38 @@ void sc_sub(unsigned char *s, const unsigned char *a, const unsigned char *b) {
   carry9 = s9 >> 21; s10 += carry9; s9 -= carry9 << 21;
   carry10 = s10 >> 21; s11 += carry10; s10 -= carry10 << 21;
 
-  s[0] = (unsigned char) (s0 >> 0);
-  s[1] = (unsigned char) (s0 >> 8);
-  s[2] = (unsigned char) ((s0 >> 16) | (s1 << 5));
-  s[3] = (unsigned char) (s1 >> 3);
-  s[4] = (unsigned char) (s1 >> 11);
-  s[5] = (unsigned char) ((s1 >> 19) | (s2 << 2));
-  s[6] = (unsigned char) (s2 >> 6);
-  s[7] = (unsigned char) ((s2 >> 14) | (s3 << 7));
-  s[8] = (unsigned char) (s3 >> 1);
-  s[9] = (unsigned char) (s3 >> 9);
-  s[10] = (unsigned char) ((s3 >> 17) | (s4 << 4));
-  s[11] = (unsigned char) (s4 >> 4);
-  s[12] = (unsigned char) (s4 >> 12);
-  s[13] = (unsigned char) ((s4 >> 20) | (s5 << 1));
-  s[14] = (unsigned char) (s5 >> 7);
-  s[15] = (unsigned char) ((s5 >> 15) | (s6 << 6));
-  s[16] = (unsigned char) (s6 >> 2);
-  s[17] = (unsigned char) (s6 >> 10);
-  s[18] = (unsigned char) ((s6 >> 18) | (s7 << 3));
-  s[19] = (unsigned char) (s7 >> 5);
-  s[20] = (unsigned char) (s7 >> 13);
-  s[21] = (unsigned char) (s8 >> 0);
-  s[22] = (unsigned char) (s8 >> 8);
-  s[23] = (unsigned char) ((s8 >> 16) | (s9 << 5));
-  s[24] = (unsigned char) (s9 >> 3);
-  s[25] = (unsigned char) (s9 >> 11);
-  s[26] = (unsigned char) ((s9 >> 19) | (s10 << 2));
-  s[27] = (unsigned char) (s10 >> 6);
-  s[28] = (unsigned char) ((s10 >> 14) | (s11 << 7));
-  s[29] = (unsigned char) (s11 >> 1);
-  s[30] = (unsigned char) (s11 >> 9);
-  s[31] = (unsigned char) (s11 >> 17);
+  s->data[0] = (unsigned char) (s0 >> 0);
+  s->data[1] = (unsigned char) (s0 >> 8);
+  s->data[2] = (unsigned char) ((s0 >> 16) | (s1 << 5));
+  s->data[3] = (unsigned char) (s1 >> 3);
+  s->data[4] = (unsigned char) (s1 >> 11);
+  s->data[5] = (unsigned char) ((s1 >> 19) | (s2 << 2));
+  s->data[6] = (unsigned char) (s2 >> 6);
+  s->data[7] = (unsigned char) ((s2 >> 14) | (s3 << 7));
+  s->data[8] = (unsigned char) (s3 >> 1);
+  s->data[9] = (unsigned char) (s3 >> 9);
+  s->data[10] = (unsigned char) ((s3 >> 17) | (s4 << 4));
+  s->data[11] = (unsigned char) (s4 >> 4);
+  s->data[12] = (unsigned char) (s4 >> 12);
+  s->data[13] = (unsigned char) ((s4 >> 20) | (s5 << 1));
+  s->data[14] = (unsigned char) (s5 >> 7);
+  s->data[15] = (unsigned char) ((s5 >> 15) | (s6 << 6));
+  s->data[16] = (unsigned char) (s6 >> 2);
+  s->data[17] = (unsigned char) (s6 >> 10);
+  s->data[18] = (unsigned char) ((s6 >> 18) | (s7 << 3));
+  s->data[19] = (unsigned char) (s7 >> 5);
+  s->data[20] = (unsigned char) (s7 >> 13);
+  s->data[21] = (unsigned char) (s8 >> 0);
+  s->data[22] = (unsigned char) (s8 >> 8);
+  s->data[23] = (unsigned char) ((s8 >> 16) | (s9 << 5));
+  s->data[24] = (unsigned char) (s9 >> 3);
+  s->data[25] = (unsigned char) (s9 >> 11);
+  s->data[26] = (unsigned char) ((s9 >> 19) | (s10 << 2));
+  s->data[27] = (unsigned char) (s10 >> 6);
+  s->data[28] = (unsigned char) ((s10 >> 14) | (s11 << 7));
+  s->data[29] = (unsigned char) (s11 >> 1);
+  s->data[30] = (unsigned char) (s11 >> 9);
+  s->data[31] = (unsigned char) (s11 >> 17);
 }
 
 /*
@@ -2562,7 +3110,11 @@ Output:
   where l = 2^252 + 27742317777372353535851937790883648493.
 */
 
-void sc_mulsub(unsigned char *s, const unsigned char *a, const unsigned char *b, const unsigned char *c) {
+void sc_mulsub(struct EllipticCurveScalar *ss, const struct EllipticCurveScalar *aa, const struct EllipticCurveScalar *bb, const struct EllipticCurveScalar *cc) {
+    unsigned char * s = ss->data;
+    const unsigned char * a = aa->data;
+    const unsigned char * b = bb->data;
+    const unsigned char * c = cc->data;
   int64_t a0 = 2097151 & load_3(a);
   int64_t a1 = 2097151 & (load_4(a + 2) >> 5);
   int64_t a2 = 2097151 & (load_3(a + 5) >> 2);
@@ -2888,21 +3440,24 @@ static int64_t signum(int64_t a) {
   return (a >> 63) - ((-a) >> 63);
 }
 
-int sc_check(const unsigned char *s) {
-  int64_t s0 = load_4(s);
-  int64_t s1 = load_4(s + 4);
-  int64_t s2 = load_4(s + 8);
-  int64_t s3 = load_4(s + 12);
-  int64_t s4 = load_4(s + 16);
-  int64_t s5 = load_4(s + 20);
-  int64_t s6 = load_4(s + 24);
-  int64_t s7 = load_4(s + 28);
-  return (int) ((signum(1559614444 - s0) + (signum(1477600026 - s1) << 1) + (signum(2734136534 - s2) << 2) + (signum(350157278 - s3) << 3) + (signum(-s4) << 4) + (signum(-s5) << 5) + (signum(-s6) << 6) + (signum(268435456 - s7) << 7)) >> 8);
+int sc_isvalid_vartime(const struct EllipticCurveScalar *s) {
+  int64_t s0 = load_4(s->data);
+  int64_t s1 = load_4(s->data + 4);
+  int64_t s2 = load_4(s->data + 8);
+  int64_t s3 = load_4(s->data + 12);
+  int64_t s4 = load_4(s->data + 16);
+  int64_t s5 = load_4(s->data + 20);
+  int64_t s6 = load_4(s->data + 24);
+  int64_t s7 = load_4(s->data + 28);
+  return (int) ((signum(1559614444 - s0) + (signum(1477600026 - s1) << 1) + (signum(2734136534 - s2) << 2) + (signum(350157278 - s3) << 3) + (signum(-s4) << 4) + (signum(-s5) << 5) + (signum(-s6) << 6) + (signum(268435456 - s7) << 7)) >> 8) == 0;
+	// TODO - remove compariosn
 }
 
-int sc_isnonzero(const unsigned char *s) {
-  return (((int) (s[0] | s[1] | s[2] | s[3] | s[4] | s[5] | s[6] | s[7] | s[8] |
-    s[9] | s[10] | s[11] | s[12] | s[13] | s[14] | s[15] | s[16] | s[17] |
-    s[18] | s[19] | s[20] | s[21] | s[22] | s[23] | s[24] | s[25] | s[26] |
-    s[27] | s[28] | s[29] | s[30] | s[31]) - 1) >> 8) + 1;
+int sc_iszero(const struct EllipticCurveScalar *ss) {
+  return sodium_is_zero(ss->data, 32);
+//    const unsigned char * s = ss->data;
+//  return (s[0] | s[1] | s[2] | s[3] | s[4] | s[5] | s[6] | s[7] | s[8] |
+//    s[9] | s[10] | s[11] | s[12] | s[13] | s[14] | s[15] | s[16] | s[17] |
+//    s[18] | s[19] | s[20] | s[21] | s[22] | s[23] | s[24] | s[25] | s[26] |
+//    s[27] | s[28] | s[29] | s[30] | s[31]) == 0;
 }

@@ -1,23 +1,9 @@
-// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
-//
-// This file is part of Varcoin.
-//
-// Varcoin is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Varcoin is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech.
+// Licensed under the GNU Lesser General Public License. See LICENSE for details.
 
 #include <stdint.h>
 
-#include "crypto-ops.h"
+#include "crypto-ops-data.h"
 
 /* sqrt(x) is such an integer y that 0 <= y <= p - 1, y % 2 = 0, and y^2 = x (mod p). */
 /* d = -121665 / 121666 */

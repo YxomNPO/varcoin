@@ -27,16 +27,20 @@ matrix:
         - ubuntu-toolchain-r-test
     before_install:
       - sudo apt-get -q update
-    install:
-      - sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
+    #install:
+      #- sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
     script:
-      - chmod 777 * -R ; mkdir build; cd build
+      - cd ../
+      - wget -c 'http://sourceforge.net/projects/boost/files/boost/1.67.0/boost_1_67_0.tar.bz2/download' && tar xf download && rm download && mv boost_1_67_0 boost && cd boost && ./bootstrap.sh && ./b2 link=static -j 2 --build-dir=build64 --stagedir=stage && cd ../
+      - git clone https://github.com/openssl/openssl.git && cd openssl && ./Configure linux-x86_64 no-shared && make -j2 && cd ../
+      - git clone https://github.com/LMDB/lmdb.git
+      - mkdir build; cd build
       - cmake .. && make -j2
       #- mkdir gh-pages ; cd gh-pages
       #- mkdir bin ; cp ../src/varcoind bin ; cp ../src/miner bin ; cp ../src/connectivity_tool bin ; cp ../src/walletd bin ; cp ../src/simplewallet bin
       #- mkdir tests ; cp ../tests/*_tests tests
-      #- git init && git config user.name "xqymain" && git config user.email "201330010330@hnu.edu.cn" && git lfs install && git lfs track * && git checkout -b gh-pages && git add . && git commit -m "Update Releases" && git push --force --quiet "https://${GH_TOKEN}@${GH_REF}" gh-pages:gh-pages 
+      #- git init && git config user.name "xqymain" && git config user.email "201330010330@hnu.edu.cn" && git lfs install && git lfs track * && git checkout -b gh-pages && git add . && git commit -m "Update Releases" && git push --force --quiet "https://${GH_TOKEN}@${GH_REF}" gh-pages:gh-pages
 
-env:
-  global:
-    - GH_REF: github.com/xqymain/varcoin.git
+#env:
+#  global:
+#    - GH_REF: github.com/xqymain/varcoin.git

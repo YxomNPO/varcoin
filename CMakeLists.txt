@@ -1,154 +1,181 @@
-cmake_minimum_required(VERSION 2.8.6)
+# Copyright (c) 2012-2018, The CryptoNote developers, YxomTech.
+# Licensed under the GNU Lesser General Public License. See LICENSE for details.
 
-set(VERSION "0.1")
-# Packaged from commit 1e0b04f692327914ba6f7dad486594b28c15d7c7 
-set(COMMIT 1e0b04f692)
-set(REFS "")
-
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-set(CMAKE_CONFIGURATION_TYPES Debug RelWithDebInfo Release CACHE TYPE INTERNAL)
-set(CMAKE_SKIP_INSTALL_RULES ON)
-set(CMAKE_SKIP_PACKAGE_ALL_DEPENDENCY ON)
-set(CMAKE_SUPPRESS_REGENERATION ON)
-enable_testing()
-# copy CTestCustom.cmake to build dir to disable long running tests in 'make test'
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake ${CMAKE_CURRENT_BINARY_DIR})
-
-project(Varcoin)
-
-include_directories(include src external "${CMAKE_CURRENT_BINARY_DIR}/version")
-if(APPLE)
-  include_directories(SYSTEM /usr/include/malloc)
-  enable_language(ASM)
-endif()
-
-if(MSVC)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Windows)
-elseif(APPLE)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/OSX)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Posix)
+cmake_minimum_required(VERSION 3.5)
+project(varcoin)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_C_STANDARD 11)
+# message(STATUS "Varcoind profile: According to cmake, sizeof(void *) == " ${CMAKE_SIZEOF_VOID_P})
+option(USE_INSTRUMENTATION "For testing - builds with address sanitizer instrument" OFF)
+option(WITH_THREAD_SANITIZER "For testing - builds with thread sanitizer instrument, USE_INSTRUMENTATION must be also set" OFF)
+option(USE_SSL "Builds with support of https between walletd and varcoind" ON)
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    option(USE_SQLITE "Builds with SQLite instead of LMDB. 4x slower, but works on 32-bit and mobile platforms" OFF)
+    set(OPENSSL_ROOT ../openssl)
 else()
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Linux)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/Platform/Posix)
+    option(USE_SQLITE "Builds with sqlite instead of LMDB. 4x slower, but works on 32-bit and mobile platforms" ON)
+    set(OPENSSL_ROOT ../openssl32)
 endif()
-
-set(STATIC ${MSVC} CACHE BOOL "Link libraries statically")
-
-if(MSVC)
-  add_definitions("/bigobj /MP /W3 /GS- /D_CRT_SECURE_NO_WARNINGS /wd4996 /wd4345 /D_WIN32_WINNT=0x0600 /DWIN32_LEAN_AND_MEAN /DGTEST_HAS_TR1_TUPLE=0 /D_VARIADIC_MAX=8 /D__SSE4_1__")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:10485760")
-  if(STATIC)
-    foreach(VAR CMAKE_C_FLAGS_DEBUG CMAKE_CXX_FLAGS_DEBUG CMAKE_C_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_C_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELEASE)
-      string(REPLACE "/MD" "/MT" ${VAR} "${${VAR}}")
-    endforeach()
-  endif()
-  include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/msc)
+if(WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    add_definitions(-D_SCL_SECURE_NO_WARNINGS=1 -D_CRT_SECURE_NO_WARNINGS=1 -D_WIN32_WINNT=0x0501)
 else()
-  if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    # This option has no effect in glibc version less than 2.20. 
-    # Since glibc 2.20 _BSD_SOURCE is deprecated, this macro is recomended instead
-    add_definitions("-D_DEFAULT_SOURCE -D_GNU_SOURCE")
-  endif()
-  set(ARCH native CACHE STRING "CPU to build for: -march value or default")
-  if("${ARCH}" STREQUAL "default")
-    set(ARCH_FLAG "")
-  else()
-    set(ARCH_FLAG "-march=${ARCH}")
-  endif()
-  set(WARNINGS "-Wall -Wextra -Wpointer-arith -Wundef -Wvla -Wwrite-strings -Werror -Wno-error=extra -Wno-error=unused-function -Wno-error=deprecated-declarations -Wno-error=sign-compare -Wno-error=strict-aliasing -Wno-error=type-limits -Wno-unused-parameter -Wno-error=unused-variable -Wno-error=undef -Wno-error=uninitialized -Wno-error=unused-result")
-  if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    set(WARNINGS "${WARNINGS} -Wno-error=mismatched-tags -Wno-error=null-conversion -Wno-overloaded-shift-op-parentheses -Wno-error=shift-count-overflow -Wno-error=tautological-constant-out-of-range-compare -Wno-error=unused-private-field -Wno-error=unneeded-internal-declaration -Wno-error=unused-function -Wno-error=missing-braces")
-  else()
-    set(WARNINGS "${WARNINGS} -Wlogical-op -Wno-error=maybe-uninitialized -Wno-error=clobbered -Wno-error=unused-but-set-variable")
-  endif()
-  if(MINGW)
-    set(WARNINGS "${WARNINGS} -Wno-error=unused-value")
-    set(MINGW_FLAG "-DWIN32_LEAN_AND_MEAN")
-    include_directories(SYSTEM src/platform/mingw)
-  else()
-    set(MINGW_FLAG "")
-  endif()
-  if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT (CMAKE_C_COMPILER_VERSION VERSION_LESS 5.1))
-    set(WARNINGS "${WARNINGS} -Wno-error=odr")
-  endif()
-  set(C_WARNINGS "-Waggregate-return -Wnested-externs -Wold-style-definition -Wstrict-prototypes")
-  set(CXX_WARNINGS "-Wno-reorder -Wno-missing-field-initializers")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 ${MINGW_FLAG} ${WARNINGS} ${C_WARNINGS} ${ARCH_FLAG} -maes")
-  if(NOT APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-  endif()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 ${MINGW_FLAG} ${WARNINGS} ${CXX_WARNINGS} ${ARCH_FLAG} -maes")
-  if(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGTEST_HAS_TR1_TUPLE=0")
-  endif()
-  if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT (CMAKE_C_COMPILER_VERSION VERSION_LESS 4.8))
-    set(DEBUG_FLAGS "-g3 -Og -gdwarf-4 -fvar-tracking -fvar-tracking-assignments -fno-inline -fno-omit-frame-pointer")
-  else()
-    set(DEBUG_FLAGS "-g3 -O0 -fno-omit-frame-pointer")
-  endif()
-  set(RELEASE_FLAGS "-Ofast -DNDEBUG -Wno-unused-variable")
-  if(NOT APPLE)
-    # There is a clang bug that does not allow to compile code that uses AES-NI intrinsics if -flto is enabled
-    if (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_SYSTEM_NAME STREQUAL "Linux" 
-        AND CMAKE_BUILD_TYPE STREQUAL "Release" AND ((CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.9) OR (CMAKE_C_COMPILER_VERSION VERSION_EQUAL 4.9)))
-      # On linux, to build in lto mode, check that ld.gold linker is used: 'update-alternatives --install /usr/bin/ld ld /usr/bin/ld.gold HIGHEST_PRIORITY'
-      set(CMAKE_AR gcc-ar)
-      set(CMAKE_RANLIB gcc-ranlib)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -maes -g -O2 -Wall -Wextra -Werror=return-type -Wno-unused-parameter")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -maes -g -O2 -Wall -Wextra -Werror=return-type -Wno-unused-parameter")
+    message(STATUS "Instrumentation usage: " ${USE_INSTRUMENTATION})
+    message(STATUS "Thread sanitizer usage: " ${WITH_THREAD_SANITIZER})
+    if(USE_INSTRUMENTATION)
+        if(WITH_THREAD_SANITIZER)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=thread")
+        else()
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -fsanitize=address,undefined")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -fsanitize=address,undefined")
+        endif()
     endif()
-    #set(RELEASE_FLAGS "${RELEASE_FLAGS} -flto")
-  endif()
-  #if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT MINGW)
-  #  set(RELEASE_FLAGS "${RELEASE_FLAGS} -fno-fat-lto-objects")
-  #endif()
-  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${DEBUG_FLAGS}")
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${DEBUG_FLAGS}")
-  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${RELEASE_FLAGS}")
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${RELEASE_FLAGS}")
-  if(STATIC AND NOT APPLE)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
-  endif()
 endif()
-
-if(STATIC)
-  set(Boost_USE_STATIC_LIBS ON)
-  set(Boost_USE_STATIC_RUNTIME ON)
-endif()
-find_package(Boost 1.55 REQUIRED COMPONENTS system filesystem thread date_time chrono regex serialization program_options)
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
-if(MINGW)
-  set(Boost_LIBRARIES "${Boost_LIBRARIES};ws2_32;mswsock")
-elseif(APPLE)
-  set(Boost_LIBRARIES "${Boost_LIBRARIES}")
-elseif(NOT MSVC)
-  set(Boost_LIBRARIES "${Boost_LIBRARIES};rt")
-endif()
-
-set(COMMIT_ID_IN_VERSION ON CACHE BOOL "Include commit ID in version")
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/version")
-if (NOT COMMIT_ID_IN_VERSION)
-  set(VERSION "${VERSION}-unknown")
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.h.in" "${CMAKE_CURRENT_BINARY_DIR}/version/version.h")
-  add_custom_target(version ALL)
-elseif(DEFINED COMMIT)
-  string(REPLACE "." "\\." VERSION_RE "${VERSION}")
-  if(NOT REFS MATCHES "(\\(|, )tag: v${VERSION_RE}(\\)|, )")
-    set(VERSION "${VERSION}-g${COMMIT}")
-  endif()
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.h.in" "${CMAKE_CURRENT_BINARY_DIR}/version/version.h")
-  add_custom_target(version ALL)
+if(USE_SQLITE)
+    # Requires dl on Linux, we add it unconditionally for simplicity.
+    message(STATUS "Database selected: SQLite 3. Make sure it is put into ../sqlite/")
+    include_directories(../sqlite)
+    set(SRC_DB ../sqlite/sqlite3.c src/platform/DBsqlite3.cpp src/platform/DBsqlite3.hpp)
+    add_definitions(-Dplatform_USE_SQLITE=1)
 else()
-  find_package(Git QUIET)
-  if(Git_FOUND OR GIT_FOUND)
-    message(STATUS "Found Git: ${GIT_EXECUTABLE}")
-    add_custom_target(version ALL "${CMAKE_COMMAND}" "-D" "VERSION=${VERSION}" "-D" "GIT=${GIT_EXECUTABLE}" "-D" "TO=${CMAKE_CURRENT_BINARY_DIR}/version/version.h" "-P" "${CMAKE_CURRENT_SOURCE_DIR}/src/version.cmake" WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-  else()
-    message(STATUS "WARNING: Git was not found!")
-    set(VERSION "${VERSION}-unknown")
-    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.h.in" "${CMAKE_CURRENT_BINARY_DIR}/version/version.h")
-    add_custom_target(version ALL)
-  endif()
+    message(STATUS "Database selected: LMDB. Make sure it is put into ../lmdb/")
+    include_directories(../lmdb/libraries/liblmdb)
+    set(SRC_DB ../lmdb/libraries/liblmdb/mdb.c ../lmdb/libraries/liblmdb/midl.c src/platform/DBlmdb.cpp src/platform/DBlmdb.hpp)
 endif()
-
-add_subdirectory(external)
-add_subdirectory(src)
-add_subdirectory(tests)
+if(USE_SSL)
+    message(STATUS "SSL usage: ON. Make sure openssl headers are in " ${OPENSSL_ROOT} "/include and static libs are in " ${OPENSSL_ROOT} "/")
+    include_directories(${OPENSSL_ROOT}/include)
+    link_directories(${OPENSSL_ROOT}) # Must be placed before add_executable, add_library.
+    set(LINK_OPENSSL ssl crypto)
+    add_definitions(-Dplatform_USE_SSL=1)
+else()
+    message(STATUS "SSL usage: OFF")
+endif()
+file(GLOB SRC_CRYPTO
+    src/crypto/*.cpp src/crypto/*.hpp src/crypto/*.h
+    src/crypto/blake256.c
+    src/crypto/chacha8.c
+    src/crypto/crypto-ops-data.c
+    src/crypto/crypto-ops.c
+    src/crypto/crypto-util.c
+    src/crypto/groestl.c
+    src/crypto/hash-extra-blake.c
+    src/crypto/hash-extra-groestl.c
+    src/crypto/hash-extra-jh.c
+    src/crypto/hash-extra-skein.c
+    src/crypto/hash.c
+    src/crypto/jh.c
+    src/crypto/keccak.c
+    src/crypto/oaes_lib.c
+    src/crypto/random.c
+    src/crypto/skein.c
+    src/crypto/slow-hash_x86.c
+    src/crypto/tree-hash.c
+)
+file(GLOB SRC_COMMON src/common/*.cpp src/common/*.hpp)
+file(GLOB SRC_SERIALIZATION src/Serialization/*.cpp src/Serialization/*.hpp)
+file(GLOB SRC_SERIA src/seria/*.cpp src/seria/*.hpp)
+file(GLOB SRC_LOGGING src/logging/*.cpp src/logging/*.hpp)
+file(GLOB SRC_P2P src/p2p/*.cpp src/p2p/*.hpp)
+file(GLOB SRC_CORE src/Core/*.cpp src/Core/*.hpp src/Core/*.h)
+file(GLOB SRC_HTTP src/http/*.cpp src/http/*.hpp)
+file(GLOB SRC_PLATFORM
+    src/platform/ExclusiveLock.cpp src/platform/ExclusiveLock.hpp
+    src/platform/Files.cpp src/platform/Files.hpp
+    src/platform/Network.cpp src/platform/Network.hpp
+    src/platform/PathTools.cpp src/platform/PathTools.hpp
+    src/platform/PreventSleep.cpp src/platform/PreventSleep.hpp
+    src/platform/Windows.hpp src/platform/DB.hpp
+)
+if(WIN32)
+    set_property(SOURCE ${SRC_CRYPTO} PROPERTY COMPILE_FLAGS -Ot)
+    set_property(SOURCE ${SRC_DB} PROPERTY COMPILE_FLAGS "-Ot -w")
+    set_property(SOURCE ${SRC_COMMON} PROPERTY COMPILE_FLAGS -Ot)
+    set_property(SOURCE ${SRC_SERIALIZATION} PROPERTY COMPILE_FLAGS -Ot)
+    set_property(SOURCE ${SRC_SERIA} PROPERTY COMPILE_FLAGS -Ot)
+else()
+    set_property(SOURCE ${SRC_CRYPTO} PROPERTY COMPILE_FLAGS -O3)
+    set_property(SOURCE ${SRC_DB} PROPERTY COMPILE_FLAGS "-O3 -w")
+    set_property(SOURCE ${SRC_COMMON} PROPERTY COMPILE_FLAGS -O3)
+    set_property(SOURCE ${SRC_SERIALIZATION} PROPERTY COMPILE_FLAGS -O3)
+    set_property(SOURCE ${SRC_SERIA} PROPERTY COMPILE_FLAGS -O3)
+endif()
+include_directories(src)
+set(SOURCE_FILES
+    ${SRC_DB}
+    ${SRC_COMMON}
+    ${SRC_HTTP}
+    ${SRC_CORE}
+    ${SRC_SERIALIZATION}
+    ${SRC_SERIA}
+    ${SRC_LOGGING}
+    ${SRC_PLATFORM}
+    ${SRC_P2P}
+    src/VarNote.hpp
+    src/VarNoteConfig.hpp
+    src/rpc_api.hpp
+    src/version.hpp
+)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/libs")
+if(WIN32)
+    include_directories(SYSTEM ../boost)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        link_directories(SYSTEM ../boost/stage/lib) # must be before add_executable, add_library
+    else()
+        link_directories(SYSTEM ../boost/stage32/lib) # must be before add_executable, add_library
+    endif()
+endif()
+add_library(varcoin-crypto ${SRC_CRYPTO})
+add_library(varcoin-core ${SOURCE_FILES})
+target_link_libraries(varcoin-core varcoin-crypto)
+if(WIN32)
+    add_executable(walletd src/main_walletd.cpp src/varcoin.rc) # .rc works only if referenced directly in add_executable
+    add_executable(varcoind 
+src/main_varcoind.cpp src/varcoin.rc) # .rc works only if referenced directly in add_executable
+else()
+    add_executable(walletd src/main_walletd.cpp)
+    add_executable(varcoind 
+src/main_varcoind.cpp)
+endif()
+add_executable(tests src/main_tests.cpp tests/io.hpp
+        tests/crypto/test_crypto.cpp tests/crypto/test_crypto.hpp
+        tests/hash/test_hash.cpp tests/hash/test_hash.hpp
+        tests/json/test_json.cpp tests/json/test_json.hpp
+        tests/wallet_file/test_wallet_file.cpp tests/wallet_file/test_wallet_file.hpp)
+set(Boost_USE_STATIC_LIBS ON)
+add_definitions(-DBOOST_BIND_NO_PLACEHOLDERS=1 -DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE=1) # boost::_1 conflicts with std::_1
+target_link_libraries(walletd varcoin-crypto varcoin-core)
+target_link_libraries(varcoind 
+varcoin-crypto varcoin-core)
+target_link_libraries(tests varcoin-crypto varcoin-core)
+if(WIN32)
+else()
+    set(Boost_USE_MULTITHREADED OFF) # all boost libraries are multithreaded since some version
+    if(APPLE)
+        set(BOOST_ROOT ../boost)
+        find_package(Boost 1.62 REQUIRED COMPONENTS system)
+        message(STATUS "Boost_INCLUDE_DIRS: " ${Boost_INCLUDE_DIRS})
+        include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+        #set(Boost_LIBRARIES "${Boost_LIBRARIES}")
+    else()
+        message(STATUS "Boost_INCLUDE_DIRS: ../boost")
+        include_directories(SYSTEM ../boost)
+        set(Boost_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/../boost/stage/lib/libboost_system.a")
+    endif()
+    message(STATUS "Boost_LIBRARIES: " ${Boost_LIBRARIES})
+    if(APPLE)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "10.11")
+        target_link_libraries(walletd "-framework Foundation" "-framework IOKit")
+        target_link_libraries(varcoind 
+"-framework Foundation" "-framework IOKit")
+    endif()
+    target_link_libraries(walletd ${Boost_LIBRARIES} ${LINK_OPENSSL} dl pthread)
+    target_link_libraries(varcoind 
+${Boost_LIBRARIES} ${LINK_OPENSSL} dl pthread)
+    target_link_libraries(tests ${Boost_LIBRARIES} ${LINK_OPENSSL} dl pthread)
+endif()

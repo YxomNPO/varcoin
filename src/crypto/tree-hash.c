@@ -1,28 +1,19 @@
-// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech
-//
-// This file is part of Varcoin.
-//
-// Varcoin is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// Varcoin is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with Varcoin.  If not, see <http://www.gnu.org/licenses/>.
+// Copyright (c) 2012-2018, The CryptoNote developers, YxomTech.
+// Licensed under the GNU Lesser General Public License. See LICENSE for details.
 
-#include <alloca.h>
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
+#ifdef _WIN32
+#include <malloc.h>
+#define alloca _alloca
+#else
+#include <alloca.h>
+#endif
 
 #include "hash-ops.h"
 
-void tree_hash(const char (*hashes)[HASH_SIZE], size_t count, char *root_hash) {
+void tree_hash(const unsigned char (*hashes)[HASH_SIZE], size_t count, unsigned char *root_hash) {
   assert(count > 0);
   if (count == 1) {
     memcpy(root_hash, hashes, HASH_SIZE);
@@ -31,7 +22,7 @@ void tree_hash(const char (*hashes)[HASH_SIZE], size_t count, char *root_hash) {
   } else {
     size_t i, j;
     size_t cnt = count - 1;
-    char (*ints)[HASH_SIZE];
+    unsigned char (*ints)[HASH_SIZE];
     for (i = 1; i < 8 * sizeof(size_t); i <<= 1) {
       cnt |= cnt >> i;
     }
@@ -65,11 +56,11 @@ size_t tree_depth(size_t count) {
   return depth;
 }
 
-void tree_branch(const char (*hashes)[HASH_SIZE], size_t count, char (*branch)[HASH_SIZE]) {
+void tree_branch(const unsigned char (*hashes)[HASH_SIZE], size_t count, unsigned char (*branch)[HASH_SIZE]) {
   size_t i, j;
   size_t cnt = 1;
   size_t depth = 0;
-  char (*ints)[HASH_SIZE];
+  unsigned char (*ints)[HASH_SIZE];
   assert(count > 0);
   for (i = sizeof(size_t) << 2; i > 0; i >>= 1) {
     if (cnt << i <= count) {
@@ -96,13 +87,13 @@ void tree_branch(const char (*hashes)[HASH_SIZE], size_t count, char (*branch)[H
   }
 }
 
-void tree_hash_from_branch(const char (*branch)[HASH_SIZE], size_t depth, const char *leaf, const void *path, char *root_hash) {
+void tree_hash_from_branch(const unsigned char (*branch)[HASH_SIZE], size_t depth, const unsigned char *leaf, const void *path, unsigned char *root_hash) {
   if (depth == 0) {
     memcpy(root_hash, leaf, HASH_SIZE);
   } else {
-    char buffer[2][HASH_SIZE];
+    unsigned char buffer[2][HASH_SIZE];
     int from_leaf = 1;
-    char *leaf_path, *branch_path;
+    unsigned char *leaf_path, *branch_path;
     while (depth > 0) {
       --depth;
       if (path && (((const char *) path)[depth >> 3] & (1 << (depth & 7))) != 0) {
