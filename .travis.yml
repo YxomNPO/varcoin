@@ -1,35 +1,30 @@
+sudo: required
 dist: xenial
-language: cpp
+os: linux
+language: c++
+#env:
+#  global:
+#    - MAKEJOBS=-j3
+  matrix:
+# ARM
+    - HOST=arm-linux-gnueabihf PACKAGES="g++-arm-linux-gnueabihf"
+# Win32
+    - HOST=i686-w64-mingw32 DPKG_ADD_ARCH="i386" PACKAGES="nsis g++-mingw-w64-i686 wine1.6" 
+# system libs
+    - HOST=x86_64-unknown-linux-gnu PACKAGES="libssl-dev libevent-dev bsdmainutils libdb5.1++-dev libminiupnpc-dev"
+# 32-bit
+    - HOST=i686-pc-linux-gnu PACKAGES="g++-multilib"
+# Win64
+    - HOST=x86_64-w64-mingw32 DPKG_ADD_ARCH="i386" PACKAGES="nsis g++-mingw-w64-x86-64 wine1.6"
+# Cross-Mac
+    - HOST=x86_64-apple-darwin11 PACKAGES="cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools"
 
-matrix:
-  include:
-
-  #
-  # varcoin release-all (gcc)
-  #
-  - os: linux
-    compiler: gcc
-    addons:
-      apt:
-        packages:
-          - build-essential
-          - cmake
-          - g++
-          - gcc
-          - clang
-          - libdb++-dev
-          - libdb-dev
-          - libgtest-dev
-          - libminiupnpc-dev
-          - libssl-dev
-          - libssl1.0.0
-      sources:
-        - ubuntu-toolchain-r-test
-    before_install:
-      - sudo apt-get -q update
-    #install:
-      #- sudo apt-get -y install libboost-{chrono,program-options,date-time,thread,system,filesystem,regex,serialization}1.58{-dev,.0}
-    script:
+before_install:
+#    - export PATH=$(echo $PATH | tr ':' "\n" | sed '/\/opt\/python/d' | tr "\n" ":" | sed "s|::|:|g")
+    sudo apt-get -q update
+#install:
+       
+before_script:
       - cd ../
       - wget -c 'http://sourceforge.net/projects/boost/files/boost/1.67.0/boost_1_67_0.tar.bz2/download' && tar xf download && rm download && mv boost_1_67_0 boost && cd boost && ./bootstrap.sh && ./b2 link=static -j 2 --build-dir=build64 --stagedir=stage && cd ../
       - git clone https://github.com/openssl/openssl.git && cd openssl && ./Configure linux-x86_64 no-shared && make -j2 && cd ../
@@ -37,11 +32,6 @@ matrix:
       - ls ; cd varcoin
       - mkdir build; cd build
       - cmake .. && make -j2
-      #- mkdir gh-pages ; cd gh-pages
-      #- mkdir bin ; cp ../src/varcoind bin ; cp ../src/miner bin ; cp ../src/connectivity_tool bin ; cp ../src/walletd bin ; cp ../src/simplewallet bin
-      #- mkdir tests ; cp ../tests/*_tests tests
-      #- git init && git config user.name "xqymain" && git config user.email "201330010330@hnu.edu.cn" && git lfs install && git lfs track * && git checkout -b gh-pages && git add . && git commit -m "Update Releases" && git push --force --quiet "https://${GH_TOKEN}@${GH_REF}" gh-pages:gh-pages
-
-#env:
-#  global:
-#    - GH_REF: github.com/xqymain/varcoin.git
+#after_script:
+#    - echo $TRAVIS_COMMIT_RANGE
+#    - echo $TRAVIS_COMMIT_LOG
